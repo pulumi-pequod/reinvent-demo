@@ -21,6 +21,13 @@ and the handler code remain app-specific. Each app stack imports the existing
 `cloud-access/aws-access` ESC environment for AWS creds — no static keys in this
 repo.
 
+> **Component references.** The app consumes the components by local path in its
+> `packages:` block (`../components/serverless-api`, `../components/static-website`),
+> matching how pequod consumes components (source-based, via path or GitHub URL —
+> not a registry string). `pulumi install` generates the local SDKs, imported as
+> `@pulumi/serverless-api` and `@pulumi/static-website`. The `pulumi package
+> publish` commands below still publish them to the registry for the catalog.
+
 > The Lambda handler is a plain `app/handler/index.js` (a code asset), not an
 > inline `CallbackFunction` — a published multi-language component can't receive
 > a JS callback across the provider boundary. The Node.js 18 runtime ships the
@@ -30,7 +37,7 @@ repo.
 
 ```bash
 # 1. The app (dev stack imports cloud-access/aws-access for AWS creds)
-cd app && npm install && pulumi stack init pequod/reinvent-tasks/dev && pulumi up
+cd app && pulumi install && pulumi stack init pequod/reinvent-tasks/dev && pulumi up
 
 # 2. Try it
 open "$(pulumi stack output siteUrl)"            # static task UI

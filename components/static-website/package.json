@@ -1,6 +1,6 @@
 {
     "name": "static-website",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "Pequod static website component: a public S3 website bucket serving an index document.",
     "main": "index.ts",
     "dependencies": {
