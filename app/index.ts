@@ -7,9 +7,10 @@
  *   - DynamoDB      : stores tasks ({ id (PK), title, assignee, email, done }).
  *   - LambdaApi     : role + Lambda (handler/) + API Gateway v2 HTTP API.
  *   - StaticWebsite : public S3 bucket serving the task UI.
+ *   - EmailSender   : verified SES sender identity + send-only IAM policy.
  *
- * The "Remind" button hits POST /remind, which returns 501 — email delivery is
- * intentionally left unimplemented.
+ * The "Remind" button hits POST /remind, which emails the task's assignee via
+ * SES. The Lambda can only send from the verified sender identity.
  *
  * AWS credentials and config come from the ESC environment imported by each
  * stack's Pulumi.<stack>.yaml — no static secrets or providers configured here.
@@ -20,12 +21,20 @@ import * as path from "path";
 import * as pulumi from "@pulumi/pulumi";
 import * as serverlessApi from "@pulumi-pequod/serverless-api";
 import * as staticWebsite from "@pulumi-pequod/static-website";
+import * as ses from "@pulumi-pequod/ses";
 import * as aws from "@pulumi/aws";
 import * as service from "@pulumi/pulumiservice";
 
 const config = new pulumi.Config();
 const appName = config.get("appName") ?? "reinvent-tasks";
 const stage = config.get("stage") ?? pulumi.getStack();
+// "From" address for reminder emails. SES sends a verification link to this
+// address; it must be confirmed before any email can be sent.
+const senderEmail = config.require("senderEmail");
+// Recipient addresses to verify as SES identities. A new SES account is in the
+// sandbox and can only send to verified recipients; list the assignee emails
+// that should receive reminders until production access is granted.
+const sandboxRecipients = config.getObject<string[]>("sandboxRecipients") ?? [];
 
 const baseTags = {
   // Do NOT set a lowercase `owner` tag — the provider applies a stack-level
@@ -67,13 +76,33 @@ const tasksAccessPolicy = tasksTable.arn.apply((tableArn) =>
 );
 
 // ---------------------------------------------------------------------------
+// Email: verified SES sender + send-only IAM policy, via the ses component
+// ---------------------------------------------------------------------------
+const emailSender = new ses.EmailSender(`${appName}-email`, {
+  senderEmail,
+  tags: baseTags,
+});
+
+// SES sandbox: only verified recipients can receive mail. Each address gets a
+// verification email that its owner must click. Remove these (and request SES
+// production access) to send to arbitrary assignees.
+sandboxRecipients.forEach((email) => {
+  new aws.ses.EmailIdentity(`${appName}-recipient-${email}`, { email });
+});
+
+// ---------------------------------------------------------------------------
 // API: role + Lambda + API Gateway, via the serverless-api component
 // ---------------------------------------------------------------------------
 const api = new serverlessApi.LambdaApi(`${appName}-api`, {
   code: new pulumi.asset.FileArchive("./handler"),
   handler: "index.handler",
+  // nodejs18.x is deprecated in Lambda and can no longer be updated.
+  runtime: "nodejs22.x",
   stageName: stage,
-  environment: { TABLE_NAME: tasksTable.name },
+  environment: {
+    TABLE_NAME: tasksTable.name,
+    SENDER_EMAIL: emailSender.senderEmail,
+  },
   inlinePolicy: tasksAccessPolicy,
   routes: [
     { method: "GET", path: "/tasks" },
@@ -82,6 +111,12 @@ const api = new serverlessApi.LambdaApi(`${appName}-api`, {
     { method: "POST", path: "/remind" },
   ],
   tags: baseTags,
+});
+
+// Grant the Lambda role send access, scoped to the verified sender identity.
+new aws.iam.RolePolicyAttachment(`${appName}-ses-send`, {
+  role: api.executionRoleName,
+  policyArn: emailSender.sendPolicyArn,
 });
 
 // ---------------------------------------------------------------------------
@@ -119,3 +154,4 @@ export const apiUrl = api.url;
 export const siteUrl = site.url;
 export const websiteEndpoint = site.websiteEndpoint;
 export const tasksTableName = tasksTable.name;
+export const reminderSenderEmail = emailSender.senderEmail;

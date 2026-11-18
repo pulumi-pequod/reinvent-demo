@@ -2,3 +2,6 @@ environment:
   - cloud-access/aws-access
 config:
   reinvent-tasks:stage: dev
+  reinvent-tasks:senderEmail: demos@pulumi.com
+  reinvent-tasks:sandboxRecipients:
+    - elichtie@pulumi.com
