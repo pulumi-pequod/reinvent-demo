@@ -1,0 +1,14 @@
+{
+    "name": "serverless-api",
+    "version": "0.1.0",
+    "description": "Pequod serverless API component: an API Gateway v2 HTTP API that routes to a Lambda, with CORS.",
+    "main": "index.ts",
+    "dependencies": {
+        "@pulumi/aws": "^6.0.0",
+        "@pulumi/pulumi": "^3.160.0"
+    },
+    "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.0.0"
+    }
+}

@@ -7,14 +7,15 @@
         "@aws-sdk/lib-dynamodb": "^3.0.0",
         "@pulumi-pequod/stackmgmt": "file:sdks/pulumi-pequod-stackmgmt",
         "@pulumi/aws": "^6.0.0",
-        "@pulumi/aws-apigateway": "^2.0.0",
-        "@pulumi/pulumi": "^3.160.0"
+        "@pulumi/pulumi": "^3.160.0",
+        "@pulumi/serverless-api": "file:sdks/serverless-api"
     },
     "devDependencies": {
         "@types/node": "^22.0.0",
         "typescript": "^5.0.0"
     },
     "allowScripts": {
-        "file:sdks/pulumi-pequod-stackmgmt": true
+        "file:sdks/pulumi-pequod-stackmgmt": true,
+        "file:sdks/serverless-api": true
     }
 }

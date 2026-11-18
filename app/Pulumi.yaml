@@ -1,14 +1,13 @@
 name: reinvent-tasks
 description: >-
-  Task-tracker demo app: API Gateway + Lambda + DynamoDB, with a static web UI
-  served from S3. Each task has a "Remind" button; the /remind endpoint is a
-  stub that the Pulumi Neo demo wires up to send email via the SES component.
+  Task-tracker demo app: API Gateway + Lambda + DynamoDB, with a static web UI served from S3. Each task has a "Remind" button; the /remind endpoint is a stub that the Pulumi Neo demo wires up to send email via the SES component.
 runtime:
   name: nodejs
   options:
     packagemanager: npm
 packages:
   stackmgmt: https://github.com/pulumi-pequod/component-stackmgmt@v2.5.0
+  serverless-api: ../components/serverless-api
 config:
   pulumi:tags:
     value:

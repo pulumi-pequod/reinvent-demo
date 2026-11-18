@@ -6,7 +6,7 @@
  *   - DynamoDB   : stores tasks ({ id (PK), title, assignee, email, done, ... })
  *   - IAM        : least-privilege Lambda role (CloudWatch logs + table CRUD)
  *   - Lambda     : CRUD API handler + a /remind STUB
- *   - API Gateway: REST API routing to the Lambda, with CORS
+ *   - LambdaApi  : custom component (API Gateway v2 HTTP API) fronting the Lambda
  *   - S3         : static website bucket serving the task UI
  *
  * The "Remind" button hits POST /remind, which today returns 501. Wiring that
@@ -22,7 +22,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
-import * as apigateway from "@pulumi/aws-apigateway";
+import { LambdaApi } from "@pulumi-pequod/serverless-api";
 import { StackSettings } from "@pulumi-pequod/stackmgmt";
 
 // NOTE: the AWS SDK is intentionally NOT imported at module scope. It is
@@ -35,68 +35,67 @@ const stage = config.get("stage") ?? pulumi.getStack();
 const runtime = "nodejs18.x";
 
 const baseTags = {
-    // Do NOT set a lowercase `owner` tag — the provider applies a stack-level
-    // `Owner` default tag and IAM rejects case-insensitive key collisions.
-    project: pulumi.getProject(),
-    PulumiStack: pulumi.getStack(),
-    stage,
-    managedBy: "pulumi",
-};
-
-// Shared CORS headers reused by the Lambda for every response (incl. preflight).
-const CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+  // Do NOT set a lowercase `owner` tag — the provider applies a stack-level
+  // `Owner` default tag and IAM rejects case-insensitive key collisions.
+  project: pulumi.getProject(),
+  PulumiStack: pulumi.getStack(),
+  stage,
+  managedBy: "pulumi",
 };
 
 // ---------------------------------------------------------------------------
 // DynamoDB: tasks keyed by id
 // ---------------------------------------------------------------------------
 const tasksTable = new aws.dynamodb.Table(`${appName}-tasks`, {
-    attributes: [{ name: "id", type: "S" }],
-    hashKey: "id",
-    billingMode: "PAY_PER_REQUEST",
-    pointInTimeRecovery: { enabled: true },
-    tags: { ...baseTags },
+  attributes: [{ name: "id", type: "S" }],
+  hashKey: "id",
+  billingMode: "PAY_PER_REQUEST",
+  pointInTimeRecovery: { enabled: true },
+  tags: { ...baseTags },
 });
 
 // ---------------------------------------------------------------------------
 // IAM: least-privilege role for the Lambda
 // ---------------------------------------------------------------------------
 const lambdaRole = new aws.iam.Role(`${appName}-lambda-role`, {
-    assumeRolePolicy: JSON.stringify({
-        Version: "2012-10-17",
-        Statement: [{
-            Action: "sts:AssumeRole",
-            Effect: "Allow",
-            Principal: { Service: "lambda.amazonaws.com" },
-        }],
-    }),
-    tags: { ...baseTags },
+  assumeRolePolicy: JSON.stringify({
+    Version: "2012-10-17",
+    Statement: [
+      {
+        Action: "sts:AssumeRole",
+        Effect: "Allow",
+        Principal: { Service: "lambda.amazonaws.com" },
+      },
+    ],
+  }),
+  tags: { ...baseTags },
 });
 
 new aws.iam.RolePolicyAttachment(`${appName}-lambda-logs`, {
-    role: lambdaRole.name,
-    policyArn: aws.iam.ManagedPolicy.AWSLambdaBasicExecutionRole,
+  role: lambdaRole.name,
+  policyArn: aws.iam.ManagedPolicy.AWSLambdaBasicExecutionRole,
 });
 
 // Least-privilege CRUD on the tasks table only.
 new aws.iam.RolePolicy(`${appName}-lambda-ddb-policy`, {
-    role: lambdaRole.id,
-    policy: tasksTable.arn.apply((tableArn) => JSON.stringify({
-        Version: "2012-10-17",
-        Statement: [{
-            Effect: "Allow",
-            Action: [
-                "dynamodb:PutItem",
-                "dynamodb:GetItem",
-                "dynamodb:UpdateItem",
-                "dynamodb:Scan",
-            ],
-            Resource: tableArn,
-        }],
-    })),
+  role: lambdaRole.id,
+  policy: tasksTable.arn.apply((tableArn) =>
+    JSON.stringify({
+      Version: "2012-10-17",
+      Statement: [
+        {
+          Effect: "Allow",
+          Action: [
+            "dynamodb:PutItem",
+            "dynamodb:GetItem",
+            "dynamodb:UpdateItem",
+            "dynamodb:Scan",
+          ],
+          Resource: tableArn,
+        },
+      ],
+    }),
+  ),
 });
 
 // NOTE(neo): when wiring up email reminders, attach the SES EmailSender
@@ -113,189 +112,202 @@ new aws.iam.RolePolicy(`${appName}-lambda-ddb-policy`, {
 // Lambda: CRUD handler + /remind stub
 // ---------------------------------------------------------------------------
 const apiHandler = new aws.lambda.CallbackFunction(`${appName}-handler`, {
-    role: lambdaRole,
-    runtime,
-    timeout: 10,
-    environment: {
-        variables: {
-            TABLE_NAME: tasksTable.name,
-        },
+  role: lambdaRole,
+  runtime,
+  timeout: 10,
+  environment: {
+    variables: {
+      TABLE_NAME: tasksTable.name,
     },
-    callback: async (ev: any) => {
-        const method: string = ev.httpMethod || "GET";
-        const resource: string = ev.resource || ev.path || "/";
+  },
+  callback: async (ev: any) => {
+    // API Gateway v2 (payload format 2.0): route on `routeKey`, e.g.
+    // "POST /tasks/{id}/done". Path variables are on `pathParameters`.
+    const routeKey: string = ev.routeKey || "";
 
-        const json = (statusCode: number, body: any) => ({
-            statusCode,
-            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-            body: JSON.stringify(body),
+    const json = (statusCode: number, body: any) => ({
+      statusCode,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+    const { DynamoDBDocument } = require("@aws-sdk/lib-dynamodb");
+    const doc = DynamoDBDocument.from(new DynamoDBClient({}));
+    const TableName = process.env.TABLE_NAME as string;
+
+    try {
+      // GET /tasks — list all tasks.
+      if (routeKey === "GET /tasks") {
+        const res = await doc.scan({ TableName });
+        const items = (res.Items ?? []).sort((a: any, b: any) =>
+          a.createdAt < b.createdAt ? 1 : -1,
+        );
+        return json(200, items);
+      }
+
+      // POST /tasks — create a task.
+      if (routeKey === "POST /tasks") {
+        const parsed = parseBody(ev);
+        const title = parsed.title;
+        if (!title) {
+          return json(400, { error: "'title' is required" });
+        }
+        const item = {
+          id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          title,
+          assigneeName: parsed.assigneeName ?? "",
+          assigneeEmail: parsed.assigneeEmail ?? "",
+          done: false,
+          createdAt: new Date().toISOString(),
+        };
+        await doc.put({ TableName, Item: item });
+        return json(201, item);
+      }
+
+      // POST /tasks/{id}/done — mark a task complete.
+      if (routeKey === "POST /tasks/{id}/done") {
+        const id = ev.pathParameters?.id;
+        if (!id) {
+          return json(400, { error: "task id is required" });
+        }
+        const res = await doc.update({
+          TableName,
+          Key: { id },
+          UpdateExpression: "SET done = :done",
+          ExpressionAttributeValues: { ":done": true },
+          ReturnValues: "ALL_NEW",
         });
+        return json(200, res.Attributes);
+      }
 
-        // CORS preflight.
-        if (method === "OPTIONS") {
-            return { statusCode: 204, headers: CORS_HEADERS, body: "" };
-        }
+      // POST /remind — STUB. The live Neo demo implements this by sending
+      // an email through the SES EmailSender component.
+      if (routeKey === "POST /remind") {
+        // TODO(neo): look up the task, then send a reminder email to
+        // task.assigneeEmail via the SES EmailSender component and
+        // return 200 on success.
+        return json(501, {
+          status: "not-implemented",
+          message:
+            "Email reminders are not wired up yet — this is the Pulumi Neo demo moment.",
+        });
+      }
 
-        const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
-        const { DynamoDBDocument } = require("@aws-sdk/lib-dynamodb");
-        const doc = DynamoDBDocument.from(new DynamoDBClient({}));
-        const TableName = process.env.TABLE_NAME as string;
-
-        try {
-            // GET /tasks — list all tasks.
-            if (method === "GET" && resource === "/tasks") {
-                const res = await doc.scan({ TableName });
-                const items = (res.Items ?? []).sort(
-                    (a: any, b: any) => (a.createdAt < b.createdAt ? 1 : -1),
-                );
-                return json(200, items);
-            }
-
-            // POST /tasks — create a task.
-            if (method === "POST" && resource === "/tasks") {
-                const parsed = parseBody(ev);
-                const title = parsed.title;
-                if (!title) {
-                    return json(400, { error: "'title' is required" });
-                }
-                const item = {
-                    id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-                    title,
-                    assigneeName: parsed.assigneeName ?? "",
-                    assigneeEmail: parsed.assigneeEmail ?? "",
-                    done: false,
-                    createdAt: new Date().toISOString(),
-                };
-                await doc.put({ TableName, Item: item });
-                return json(201, item);
-            }
-
-            // POST /tasks/{id}/done — mark a task complete.
-            if (method === "POST" && resource === "/tasks/{id}/done") {
-                const id = ev.pathParameters?.id;
-                if (!id) {
-                    return json(400, { error: "task id is required" });
-                }
-                const res = await doc.update({
-                    TableName,
-                    Key: { id },
-                    UpdateExpression: "SET done = :done",
-                    ExpressionAttributeValues: { ":done": true },
-                    ReturnValues: "ALL_NEW",
-                });
-                return json(200, res.Attributes);
-            }
-
-            // POST /remind — STUB. The live Neo demo implements this by sending
-            // an email through the SES EmailSender component.
-            if (method === "POST" && resource === "/remind") {
-                // TODO(neo): look up the task, then send a reminder email to
-                // task.assigneeEmail via the SES EmailSender component and
-                // return 200 on success.
-                return json(501, {
-                    status: "not-implemented",
-                    message:
-                        "Email reminders are not wired up yet — this is the Pulumi Neo demo moment.",
-                });
-            }
-
-            return json(404, { error: `No route for ${method} ${resource}` });
-        } catch (e: any) {
-            return json(500, { error: e?.message ?? "Internal error" });
-        }
-    },
-    tags: { ...baseTags },
+      return json(404, { error: `No route for ${routeKey}` });
+    } catch (e: any) {
+      return json(500, { error: e?.message ?? "Internal error" });
+    }
+  },
+  tags: { ...baseTags },
 });
 
 // Parse a JSON body or query string into an object.
 function parseBody(ev: any): any {
-    try {
-        if (ev.body) {
-            const raw = ev.isBase64Encoded
-                ? Buffer.from(ev.body, "base64").toString("utf8")
-                : ev.body;
-            return JSON.parse(raw || "{}");
-        }
-        return ev.queryStringParameters || {};
-    } catch {
-        return {};
+  try {
+    if (ev.body) {
+      const raw = ev.isBase64Encoded
+        ? Buffer.from(ev.body, "base64").toString("utf8")
+        : ev.body;
+      return JSON.parse(raw || "{}");
     }
+    return ev.queryStringParameters || {};
+  } catch {
+    return {};
+  }
 }
 
 // ---------------------------------------------------------------------------
-// API Gateway (REST API) — routes to the Lambda, with explicit CORS preflight
+// LambdaApi: custom component (API Gateway v2 HTTP API) fronting the Lambda.
+// CORS preflight is handled by the API, so no OPTIONS routes are needed here.
 // ---------------------------------------------------------------------------
-const api = new apigateway.RestAPI(`${appName}-api`, {
-    stageName: stage,
-    routes: [
-        { path: "/tasks", method: "GET", eventHandler: apiHandler },
-        { path: "/tasks", method: "POST", eventHandler: apiHandler },
-        { path: "/tasks", method: "OPTIONS", eventHandler: apiHandler },
-        { path: "/tasks/{id}/done", method: "POST", eventHandler: apiHandler },
-        { path: "/tasks/{id}/done", method: "OPTIONS", eventHandler: apiHandler },
-        { path: "/remind", method: "POST", eventHandler: apiHandler },
-        { path: "/remind", method: "OPTIONS", eventHandler: apiHandler },
-    ],
-    tags: { ...baseTags },
+const api = new LambdaApi(`${appName}-api`, {
+  handler: apiHandler,
+  stageName: stage,
+  routes: [
+    { method: "GET", path: "/tasks" },
+    { method: "POST", path: "/tasks" },
+    { method: "POST", path: "/tasks/{id}/done" },
+    { method: "POST", path: "/remind" },
+  ],
+  tags: baseTags,
 });
 
-// API base URL (stage URL ends with a trailing slash).
-const apiBaseUrl = api.url.apply((u) => u.replace(/\/$/, ""));
+// Invoke URL already includes the stage and has no trailing slash.
+const apiBaseUrl = api.url;
 
 // ---------------------------------------------------------------------------
 // S3 static website: serves the task UI with the live API URL injected
 // ---------------------------------------------------------------------------
 const siteBucket = new aws.s3.BucketV2(`${appName}-site`, {
-    tags: { ...baseTags },
+  tags: { ...baseTags },
 });
 
 new aws.s3.BucketWebsiteConfigurationV2(`${appName}-site-web`, {
-    bucket: siteBucket.id,
-    indexDocument: { suffix: "index.html" },
+  bucket: siteBucket.id,
+  indexDocument: { suffix: "index.html" },
 });
 
-const ownership = new aws.s3.BucketOwnershipControls(`${appName}-site-ownership`, {
+const ownership = new aws.s3.BucketOwnershipControls(
+  `${appName}-site-ownership`,
+  {
     bucket: siteBucket.id,
     rule: { objectOwnership: "BucketOwnerPreferred" },
-});
+  },
+);
 
-const publicAccess = new aws.s3.BucketPublicAccessBlock(`${appName}-site-access`, {
+const publicAccess = new aws.s3.BucketPublicAccessBlock(
+  `${appName}-site-access`,
+  {
     bucket: siteBucket.id,
     blockPublicAcls: false,
     blockPublicPolicy: false,
     ignorePublicAcls: false,
     restrictPublicBuckets: false,
-});
+  },
+);
 
 // Allow public reads so the static site is browsable.
-new aws.s3.BucketPolicy(`${appName}-site-policy`, {
+new aws.s3.BucketPolicy(
+  `${appName}-site-policy`,
+  {
     bucket: siteBucket.id,
-    policy: siteBucket.arn.apply((arn) => JSON.stringify({
+    policy: siteBucket.arn.apply((arn) =>
+      JSON.stringify({
         Version: "2012-10-17",
-        Statement: [{
+        Statement: [
+          {
             Effect: "Allow",
             Principal: "*",
             Action: ["s3:GetObject"],
             Resource: `${arn}/*`,
-        }],
-    })),
-}, { dependsOn: [publicAccess] });
+          },
+        ],
+      }),
+    ),
+  },
+  { dependsOn: [publicAccess] },
+);
 
 // Inject the live API endpoint into the HTML (replaces __API_ENDPOINT__).
 const indexHtml = fs.readFileSync(
-    path.join(__dirname, "frontend", "index.html"),
-    "utf8",
+  path.join(__dirname, "frontend", "index.html"),
+  "utf8",
 );
 const renderedHtml = apiBaseUrl.apply((url) =>
-    indexHtml.replace(/__API_ENDPOINT__/g, url),
+  indexHtml.replace(/__API_ENDPOINT__/g, url),
 );
 
-new aws.s3.BucketObject(`${appName}-index`, {
+new aws.s3.BucketObject(
+  `${appName}-index`,
+  {
     bucket: siteBucket.id,
     key: "index.html",
     content: renderedHtml,
     contentType: "text/html",
-}, { dependsOn: [ownership, publicAccess] });
+  },
+  { dependsOn: [ownership, publicAccess] },
+);
 
 // Manage stack settings in Pulumi Cloud (TTL, drift, deployment settings).
 new StackSettings("stackmgmt");
