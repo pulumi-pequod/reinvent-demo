@@ -1,14 +1,14 @@
 # re:Invent Demo — Task Tracker
 
 Scaffolding for the re:Invent live demo. A serverless **task-tracker** app where
-each task has a **"Remind"** button. Email delivery is deliberately **not** wired
-up yet — the `EmailSender` component is published and ready to drop in.
+each task has a **"Remind"** button that emails the task's assignee through
+Amazon SES using the `EmailSender` component.
 
 ## Layout
 
 | Path            | What it is | How it ships |
 | --------------- | ---------- | ------------ |
-| `app/`          | Task-tracker: a DynamoDB table assembled with the `LambdaApi` and `StaticWebsite` components. The Lambda handler lives in `app/handler/`. `/remind` is a 501 stub. | `pulumi up` per stage |
+| `app/`          | Task-tracker: a DynamoDB table assembled with the `LambdaApi` and `StaticWebsite` components. The Lambda handler lives in `app/handler/`. `/remind` sends a reminder email via SES. | `pulumi up` per stage |
 | `components/serverless-api/`| `LambdaApi` component — IAM role + Lambda + API Gateway v2 HTTP API. | **publish to the pequod registry** (`pulumi package publish`) |
 | `components/static-website/`| `StaticWebsite` component — public S3 website bucket serving an index document. | **publish to the pequod registry** (`pulumi package publish`) |
 | `components/ses/`| `EmailSender` component (verified SES sender + scoped send IAM policy). | **publish to the pequod registry** (`pulumi package publish`) |
@@ -42,7 +42,7 @@ cd app && pulumi install && pulumi stack init pequod/reinvent-tasks/dev && pulum
 # 2. Try it
 open "$(pulumi stack output siteUrl)"            # static task UI
 curl "$(pulumi stack output apiUrl)/tasks"       # -> []
-curl -X POST "$(pulumi stack output apiUrl)/remind" -d '{"taskId":"x"}'   # -> 501 (not implemented)
+curl -X POST "$(pulumi stack output apiUrl)/remind" -d '{"taskId":"<task id>"}'   # -> 200 (email sent)
 
 # 3. (optional) run with guardrails
 pulumi preview --policy-pack ../policies
@@ -50,9 +50,21 @@ pulumi preview --policy-pack ../policies
 
 ## Email reminders
 
-`POST /remind` returns `501 not-implemented` — email delivery is intentionally
-left unimplemented. The `EmailSender` component (`components/ses/`) is published
-and ready to wire in when the feature is built.
+`POST /remind` with `{ "taskId": "..." }` looks up the task and emails its
+`assigneeEmail` through SES (`200` on success). A task with no (or an invalid)
+assignee email returns `422` with a clear message; an unknown task returns `404`.
+
+Stack config (set per stack, or via ESC `pulumiConfig`):
+
+| Key | Required | Description |
+| --- | -------- | ----------- |
+| `reinvent-tasks:senderEmail` | yes | "From" address for reminders. |
+| `reinvent-tasks:verifySenderAddress` | no (default `true`) | `true` creates an SES email identity for `senderEmail` (SES emails it a confirmation link). Set `false` when the sender's domain is already a verified SES identity. |
+
+The Lambda role gets `ses:SendEmail`/`ses:SendRawEmail` scoped to the sender's
+SES identity only. **SES sandbox:** if the account is still in the sandbox, SES
+rejects mail to unverified recipients (the API returns `502` with an explanatory
+message); verify the recipient addresses or request SES production access.
 
 ## Publishing the components
 
