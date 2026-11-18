@@ -73,6 +73,7 @@ export class StaticWebsite extends pulumi.ComponentResource {
             key: indexDocument,
             content: args.content,
             contentType: args.contentType ?? "text/html",
+            tags: args.tags,
         }, { ...o, dependsOn: [ownership, publicAccess] });
 
         const region = aws.getRegionOutput({}, o).name;
