@@ -35,10 +35,11 @@ new aws.iam.RolePolicyAttachment("lambda-ses", {
 
 ## Inputs
 
-| Name                   | Type     | Required | Description |
-| ---------------------- | -------- | -------- | ----------- |
-| `senderEmail`          | `string` | yes      | The "from" address SES verifies. In the SES sandbox this (and recipients) must be confirmed before sending. |
-| `domain`               | `string` | no       | Domain to additionally verify as a sending identity (enables per-domain DKIM). |
+| Name                   | Type      | Required | Description |
+| ---------------------- | --------- | -------- | ----------- |
+| `senderEmail`          | `string`  | yes      | The "from" address. In the SES sandbox this (and recipients) must be confirmed before sending. |
+| `verifySenderAddress`  | `boolean` | no       | Default `true`: verify `senderEmail` as a new identity (emails a link to it). Set `false` when the sender's domain is already a verified SES identity — no per-address identity is created, nothing goes "Pending", and the send policy is scoped to the domain. Use for send-only domains you can't receive mail at. |
+| `domain`               | `string`  | no       | Domain to additionally verify as a sending identity (enables per-domain DKIM). |
 | `configurationSetName` | `string` | no       | Creates a dedicated SES configuration set for event tracking. |
 | `tags`                 | `map`    | no       | Tags applied to the IAM send policy. |
 
