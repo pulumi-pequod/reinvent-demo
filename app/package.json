@@ -1,17 +1,19 @@
 {
-    "name": "reinvent-tasks",
-    "version": "0.1.0",
-    "main": "index.ts",
-    "dependencies": {
-        "@pulumi-pequod/stackmgmt": "file:sdks/pulumi-pequod-stackmgmt",
-        "@pulumi/aws": "^6.0.0",
-        "@pulumi/pulumi": "^3.160.0"
-    },
-    "devDependencies": {
-        "@types/node": "^22.0.0",
-        "typescript": "^5.0.0"
-    },
-    "allowScripts": {
-        "file:sdks/pulumi-pequod-stackmgmt": true
-    }
+  "name": "reinvent-tasks",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@pulumi-pequod/serverless-api": "file:sdks/pulumi-pequod-serverless-api",
+    "@pulumi-pequod/static-website": "file:sdks/pulumi-pequod-static-website",
+    "@pulumi/aws": "^6.0.0",
+    "@pulumi/pulumi": "^3.160.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0"
+  },
+  "allowScripts": {
+    "file:sdks/pulumi-pequod-serverless-api": true,
+    "file:sdks/pulumi-pequod-static-website": true
+  }
 }

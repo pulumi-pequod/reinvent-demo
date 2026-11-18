@@ -6,7 +6,8 @@ runtime:
   options:
     packagemanager: npm
 packages:
-  stackmgmt: https://github.com/pulumi-pequod/component-stackmgmt@v2.5.0
+  serverless-api: github.com/pulumi-pequod/reinvent-demo.git/components/serverless-api@0.3.0
+  static-website: github.com/pulumi-pequod/reinvent-demo.git/components/static-website@0.3.0
 config:
   pulumi:tags:
     value:
