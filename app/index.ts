@@ -21,6 +21,7 @@ import * as pulumi from "@pulumi/pulumi";
 import * as serverlessApi from "@pulumi-pequod/serverless-api";
 import * as staticWebsite from "@pulumi-pequod/static-website";
 import * as aws from "@pulumi/aws";
+import * as service from "@pulumi/pulumiservice";
 
 const config = new pulumi.Config();
 const appName = config.get("appName") ?? "reinvent-tasks";
@@ -98,6 +99,17 @@ const renderedHtml = api.url.apply((url) =>
 const site = new staticWebsite.StaticWebsite(`${appName}-site`, {
   content: renderedHtml,
   tags: baseTags,
+});
+
+// ---------------------------------------------------------------------------
+// Stack metadata: tag every stack in this project for the demo (via PSP)
+// ---------------------------------------------------------------------------
+new service.StackTag("demo-tag", {
+    organization: pulumi.getOrganization(),
+    project: pulumi.getProject(),
+    stack: pulumi.getStack(),
+    name: "demo",
+    value: "reinvent",
 });
 
 // ---------------------------------------------------------------------------

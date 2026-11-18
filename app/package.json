@@ -6,7 +6,8 @@
     "@pulumi-pequod/serverless-api": "file:sdks/pulumi-pequod-serverless-api",
     "@pulumi-pequod/static-website": "file:sdks/pulumi-pequod-static-website",
     "@pulumi/aws": "^6.0.0",
-    "@pulumi/pulumi": "^3.160.0"
+    "@pulumi/pulumi": "^3.160.0",
+    "@pulumi/pulumiservice": "^0.29.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
