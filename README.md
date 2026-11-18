@@ -64,7 +64,7 @@ pulumi preview --policy-pack ../policies
 **Config** (per stack):
 
 ```bash
-pulumi config set senderEmail demos@pulumi.com            # required "From" address
+pulumi config set senderEmail demos@pulumi-ce.team         # required "From" address
 pulumi config set --path 'sandboxRecipients[0]' you@example.com   # optional, see below
 ```
 
