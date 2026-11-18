@@ -1,0 +1,14 @@
+{
+    "name": "ses",
+    "version": "0.1.0",
+    "description": "Pequod SES EmailSender component: verified sender identity plus a scoped send-email IAM policy.",
+    "main": "index.ts",
+    "dependencies": {
+        "@pulumi/aws": "^6.0.0",
+        "@pulumi/pulumi": "^3.160.0"
+    },
+    "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.0.0"
+    }
+}

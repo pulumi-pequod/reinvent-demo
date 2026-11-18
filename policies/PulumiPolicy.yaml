@@ -1,0 +1,4 @@
+runtime: nodejs
+description: >-
+  Guardrails for the re:Invent task-tracker demo: DynamoDB point-in-time
+  recovery, on-demand billing, and required project tags.

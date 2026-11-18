@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>re:Invent Task Tracker</title>
+    <style>
+        :root {
+            --purple: #8a3391;
+            --ink: #1b1b2b;
+            --bg: #f6f5fb;
+            --line: #e3e0ef;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--ink);
+        }
+        header {
+            background: var(--purple);
+            color: #fff;
+            padding: 24px 20px;
+        }
+        header h1 { margin: 0; font-size: 20px; }
+        header p { margin: 6px 0 0; opacity: 0.85; font-size: 13px; }
+        main { max-width: 680px; margin: 0 auto; padding: 24px 20px; }
+        form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+        form input { grid-column: span 1; padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; }
+        form input.full { grid-column: span 2; }
+        form button { grid-column: span 2; padding: 10px; border: 0; border-radius: 8px; background: var(--purple); color: #fff; font-weight: 600; cursor: pointer; }
+        ul { list-style: none; margin: 0; padding: 0; }
+        li {
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        li.done .title { text-decoration: line-through; opacity: 0.5; }
+        .task-body { flex: 1; }
+        .title { font-weight: 600; }
+        .assignee { font-size: 12px; color: #6a6a82; margin-top: 2px; }
+        .actions button {
+            border: 1px solid var(--line);
+            background: #fff;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 6px;
+        }
+        .actions button.remind { border-color: var(--purple); color: var(--purple); }
+        .empty { color: #8a8aa0; text-align: center; padding: 32px; }
+        .toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 8px;
+            font-size: 13px; opacity: 0; transition: opacity 0.2s; pointer-events: none;
+        }
+        .toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>re:Invent Task Tracker</h1>
+        <p>Click "Remind" to nudge an assignee by email — wired up live with Pulumi Neo.</p>
+    </header>
+    <main>
+        <form id="new-task">
+            <input id="title" class="full" placeholder="Task title" required />
+            <input id="assigneeName" placeholder="Assignee name" />
+            <input id="assigneeEmail" type="email" placeholder="Assignee email" />
+            <button type="submit">Add task</button>
+        </form>
+        <ul id="tasks"></ul>
+        <div id="empty" class="empty">No tasks yet — add one above.</div>
+    </main>
+    <div id="toast" class="toast"></div>
+
+    <script>
+        const API = "__API_ENDPOINT__";
+
+        function toast(msg) {
+            const t = document.getElementById("toast");
+            t.textContent = msg;
+            t.classList.add("show");
+            setTimeout(() => t.classList.remove("show"), 2600);
+        }
+
+        async function loadTasks() {
+            const res = await fetch(`${API}/tasks`);
+            const tasks = await res.json();
+            const ul = document.getElementById("tasks");
+            const empty = document.getElementById("empty");
+            ul.innerHTML = "";
+            empty.style.display = tasks.length ? "none" : "block";
+            for (const t of tasks) {
+                const li = document.createElement("li");
+                if (t.done) li.className = "done";
+                const who = t.assigneeName || t.assigneeEmail
+                    ? `${t.assigneeName || "Unassigned"}${t.assigneeEmail ? " · " + t.assigneeEmail : ""}`
+                    : "Unassigned";
+                li.innerHTML = `
+                    <div class="task-body">
+                        <div class="title"></div>
+                        <div class="assignee"></div>
+                    </div>
+                    <div class="actions">
+                        <button class="remind">Remind</button>
+                        <button class="done">Done</button>
+                    </div>`;
+                li.querySelector(".title").textContent = t.title;
+                li.querySelector(".assignee").textContent = who;
+                li.querySelector(".remind").onclick = () => remind(t);
+                li.querySelector(".done").onclick = () => markDone(t.id);
+                ul.appendChild(li);
+            }
+        }
+
+        async function addTask(e) {
+            e.preventDefault();
+            const title = document.getElementById("title").value.trim();
+            const assigneeName = document.getElementById("assigneeName").value.trim();
+            const assigneeEmail = document.getElementById("assigneeEmail").value.trim();
+            if (!title) return;
+            await fetch(`${API}/tasks`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ title, assigneeName, assigneeEmail }),
+            });
+            e.target.reset();
+            loadTasks();
+        }
+
+        async function markDone(id) {
+            await fetch(`${API}/tasks/${id}/done`, { method: "POST" });
+            loadTasks();
+        }
+
+        async function remind(task) {
+            const res = await fetch(`${API}/remind`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ taskId: task.id }),
+            });
+            const body = await res.json().catch(() => ({}));
+            if (res.ok) {
+                toast(`Reminder sent to ${task.assigneeEmail || "assignee"}`);
+            } else {
+                toast(body.message || "Reminders not wired up yet (Neo demo).");
+            }
+        }
+
+        document.getElementById("new-task").addEventListener("submit", addTask);
+        loadTasks();
+    </script>
+</body>
+</html>

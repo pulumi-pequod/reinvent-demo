@@ -1,0 +1,4 @@
+environment:
+  - cloud-access/aws-access
+config:
+  reinvent-tasks:stage: staging

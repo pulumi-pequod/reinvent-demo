@@ -1,0 +1,14 @@
+{
+    "name": "reinvent-demo-guardrails",
+    "version": "0.1.0",
+    "main": "index.ts",
+    "dependencies": {
+        "@pulumi/aws": "^6.0.0",
+        "@pulumi/policy": "^1.13.0",
+        "@pulumi/pulumi": "^3.160.0"
+    },
+    "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.0.0"
+    }
+}
