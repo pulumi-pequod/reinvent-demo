@@ -1,6 +1,6 @@
 name: reinvent-tasks
 description: >-
-  Task-tracker demo app: API Gateway + Lambda + DynamoDB, with a static web UI served from S3. Each task has a "Remind" button; the /remind endpoint is a stub — email delivery is intentionally left unimplemented.
+  Task-tracker demo app: API Gateway + Lambda + DynamoDB, with a static web UI served from S3. Each task has a "Remind" button; the /remind endpoint emails the task assignee via Amazon SES.
 runtime:
   name: nodejs
   options:
@@ -8,6 +8,7 @@ runtime:
 packages:
   serverless-api: github.com/pulumi-pequod/reinvent-demo.git/components/serverless-api@0.3.0
   static-website: github.com/pulumi-pequod/reinvent-demo.git/components/static-website@0.4.0
+  ses: github.com/pulumi-pequod/reinvent-demo.git/components/ses@0.5.0
 config:
   pulumi:tags:
     value:
