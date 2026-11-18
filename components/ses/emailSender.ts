@@ -9,6 +9,17 @@ export interface EmailSenderArgs {
      */
     senderEmail: pulumi.Input<string>;
     /**
+     * Whether to verify `senderEmail` as a new SES email-address identity
+     * (default true). This emails a verification link to that address.
+     *
+     * Set false when the sender's domain is already a verified SES identity
+     * (e.g. a domain verified with DKIM) — no per-address identity is created,
+     * nothing goes "Pending", and the send policy is scoped to the domain
+     * identity instead. Use this when you can't receive mail at the sender
+     * address (e.g. a send-only domain with no inbox).
+     */
+    verifySenderAddress?: boolean;
+    /**
      * Optional domain to additionally verify as a sending identity (enables
      * per-domain DKIM and sending from any address at that domain).
      */
@@ -46,11 +57,29 @@ export class EmailSender extends pulumi.ComponentResource {
         super("pequod-ses:index:EmailSender", name, args, opts);
 
         const defaultOpts = { parent: this };
+        const verifySenderAddress = args.verifySenderAddress ?? true;
 
-        // Verify the sender email address as an SES identity.
-        const senderIdentity = new aws.ses.EmailIdentity(`${name}-sender`, {
-            email: args.senderEmail,
-        }, defaultOpts);
+        // The SES identity ARN the send policy is scoped to. Either the
+        // newly-verified email-address identity, or — when relying on an
+        // already-verified domain — that domain's identity ARN.
+        let identityArn: pulumi.Output<string>;
+
+        if (verifySenderAddress) {
+            // Verify the sender email address as a new SES identity.
+            const senderIdentity = new aws.ses.EmailIdentity(`${name}-sender`, {
+                email: args.senderEmail,
+            }, defaultOpts);
+            identityArn = senderIdentity.arn;
+        } else {
+            // Rely on an already-verified domain identity for the sender's
+            // domain; create no new identity. Scope the policy to that domain.
+            const region = aws.getRegionOutput({}, defaultOpts).name;
+            const accountId = aws.getCallerIdentityOutput({}, defaultOpts).accountId;
+            const senderDomain = pulumi.output(args.senderEmail).apply(
+                (email) => email.split("@")[1] ?? email,
+            );
+            identityArn = pulumi.interpolate`arn:aws:ses:${region}:${accountId}:identity/${senderDomain}`;
+        }
 
         // Optionally verify a whole domain as a sending identity.
         if (args.domain) {
@@ -71,20 +100,20 @@ export class EmailSender extends pulumi.ComponentResource {
         // verified identity. The consumer attaches this to its own role.
         const sendPolicy = new aws.iam.Policy(`${name}-send-policy`, {
             description: "Allow sending email through SES from the verified sender identity",
-            policy: senderIdentity.arn.apply((identityArn) => JSON.stringify({
+            policy: identityArn.apply((arn) => JSON.stringify({
                 Version: "2012-10-17",
                 Statement: [
                     {
                         Effect: "Allow",
                         Action: ["ses:SendEmail", "ses:SendRawEmail"],
-                        Resource: identityArn,
+                        Resource: arn,
                     },
                 ],
             })),
             tags: args.tags,
         }, defaultOpts);
 
-        this.senderIdentityArn = senderIdentity.arn;
+        this.senderIdentityArn = identityArn;
         this.senderEmail = pulumi.output(args.senderEmail);
         this.sendPolicyArn = sendPolicy.arn;
         this.configurationSetName = pulumi.output(configurationSet?.name);
