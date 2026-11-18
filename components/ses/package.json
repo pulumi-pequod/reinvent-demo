@@ -1,6 +1,6 @@
 {
     "name": "ses",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Pequod SES EmailSender component: verified sender identity plus a scoped send-email IAM policy.",
     "main": "index.ts",
     "dependencies": {

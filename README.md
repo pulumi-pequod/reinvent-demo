@@ -1,27 +1,30 @@
 # re:Invent Demo — Task Tracker
 
 Scaffolding for the re:Invent live demo. A serverless **task-tracker** app where
-each task has a **"Remind"** button. Email is deliberately **not** wired up yet —
-implementing the reminder with the SES component is the live **Pulumi Neo** moment.
+each task has a **"Remind"** button. Email delivery is deliberately **not** wired
+up yet — the `EmailSender` component is published and ready to drop in.
 
 ## Layout
 
 | Path            | What it is | How it ships |
 | --------------- | ---------- | ------------ |
-| `app/`          | Task-tracker: Lambda + DynamoDB + static S3 web UI, fronted by the `LambdaApi` component. `/remind` is a 501 stub. | `pulumi up` per stage |
-| `components/serverless-api/`| `LambdaApi` component (API Gateway v2 HTTP API fronting a Lambda). | **publish to the pequod registry** (`pulumi package publish`) |
+| `app/`          | Task-tracker: a DynamoDB table assembled with the `LambdaApi` and `StaticWebsite` components. The Lambda handler lives in `app/handler/`. `/remind` is a 501 stub. | `pulumi up` per stage |
+| `components/serverless-api/`| `LambdaApi` component — IAM role + Lambda + API Gateway v2 HTTP API. | **publish to the pequod registry** (`pulumi package publish`) |
+| `components/static-website/`| `StaticWebsite` component — public S3 website bucket serving an index document. | **publish to the pequod registry** (`pulumi package publish`) |
 | `components/ses/`| `EmailSender` component (verified SES sender + scoped send IAM policy). | **publish to the pequod registry** (`pulumi package publish`) |
 | `policies/`     | Guardrails policy pack (DynamoDB PITR + on-demand billing + required tags). | `--policy-pack` on preview/up |
 
 The app is built from custom components wherever possible — `LambdaApi` for the
-API and `@pulumi-pequod/stackmgmt` (`StackSettings`) for stack settings. Each app
-stack imports the existing `cloud-access/aws-access` ESC environment for AWS creds
-— no static keys in this repo.
+API/compute, `StaticWebsite` for the UI, and `@pulumi-pequod/stackmgmt`
+(`StackSettings`) for stack settings. Only the DynamoDB table (the data model)
+and the handler code remain app-specific. Each app stack imports the existing
+`cloud-access/aws-access` ESC environment for AWS creds — no static keys in this
+repo.
 
-> The app currently consumes `serverless-api` as a **local SDK** (wired via
-> `pulumi package add ../components/serverless-api`, imported as
-> `@pulumi/serverless-api`). After you publish it to the pequod registry, repoint
-> the import to `@pulumi-pequod/serverless-api`.
+> The Lambda handler is a plain `app/handler/index.js` (a code asset), not an
+> inline `CallbackFunction` — a published multi-language component can't receive
+> a JS callback across the provider boundary. The Node.js 18 runtime ships the
+> AWS SDK v3, so the handler needs no bundled dependencies.
 
 ## Run order
 
@@ -32,22 +35,17 @@ cd app && npm install && pulumi stack init pequod/reinvent-tasks/dev && pulumi u
 # 2. Try it
 open "$(pulumi stack output siteUrl)"            # static task UI
 curl "$(pulumi stack output apiUrl)/tasks"       # -> []
-curl -X POST "$(pulumi stack output apiUrl)/remind" -d '{"taskId":"x"}'   # -> 501 (Neo demo)
+curl -X POST "$(pulumi stack output apiUrl)/remind" -d '{"taskId":"x"}'   # -> 501 (not implemented)
 
 # 3. (optional) run with guardrails
 pulumi preview --policy-pack ../policies
 ```
 
-## The Neo demo moment
+## Email reminders
 
-`POST /remind` returns `501 not-implemented`. On stage, Neo:
-
-1. Publishes / imports the SES `EmailSender` component.
-2. Instantiates it in `app/index.ts` with the verified `senderEmail`.
-3. Attaches `sender.sendPolicyArn` to the Lambda role (marked `NOTE(neo)` in the code).
-4. Replaces the `/remind` stub with a real `SendEmail` call to `task.assigneeEmail`.
-
-See the `TODO(neo)` / `NOTE(neo)` markers in `app/index.ts`.
+`POST /remind` returns `501 not-implemented` — email delivery is intentionally
+left unimplemented. The `EmailSender` component (`components/ses/`) is published
+and ready to wire in when the feature is built.
 
 ## Publishing the components
 
@@ -58,5 +56,9 @@ pulumi package publish . --publisher pequod
 
 # Serverless API (LambdaApi)
 cd ../serverless-api && npm install
+pulumi package publish . --publisher pequod
+
+# Static Website
+cd ../static-website && npm install
 pulumi package publish . --publisher pequod
 ```

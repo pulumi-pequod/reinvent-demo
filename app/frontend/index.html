@@ -76,7 +76,7 @@
 <body>
     <header>
         <h1>re:Invent Task Tracker</h1>
-        <p>Click "Remind" to nudge an assignee by email — wired up live with Pulumi Neo.</p>
+        <p>Click "Remind" to nudge an assignee by email.</p>
     </header>
     <main>
         <form id="new-task">
@@ -160,7 +160,7 @@
             if (res.ok) {
                 toast(`Reminder sent to ${task.assigneeEmail || "assignee"}`);
             } else {
-                toast(body.message || "Reminders not wired up yet (Neo demo).");
+                toast(body.message || "Reminders are not available yet.");
             }
         }
 

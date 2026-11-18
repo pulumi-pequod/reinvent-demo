@@ -3,19 +3,15 @@
     "version": "0.1.0",
     "main": "index.ts",
     "dependencies": {
-        "@aws-sdk/client-dynamodb": "^3.0.0",
-        "@aws-sdk/lib-dynamodb": "^3.0.0",
         "@pulumi-pequod/stackmgmt": "file:sdks/pulumi-pequod-stackmgmt",
         "@pulumi/aws": "^6.0.0",
-        "@pulumi/pulumi": "^3.160.0",
-        "@pulumi/serverless-api": "file:sdks/serverless-api"
+        "@pulumi/pulumi": "^3.160.0"
     },
     "devDependencies": {
         "@types/node": "^22.0.0",
         "typescript": "^5.0.0"
     },
     "allowScripts": {
-        "file:sdks/pulumi-pequod-stackmgmt": true,
-        "file:sdks/serverless-api": true
+        "file:sdks/pulumi-pequod-stackmgmt": true
     }
 }
