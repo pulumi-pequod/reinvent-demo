@@ -3,8 +3,10 @@
  *
  * Declared as code: its own identity, a least-privilege role, and its
  * instructions. The role lets it read stacks and their history, search
- * resources, and open the dev AWS-access environment so it can run a
- * `pulumi preview` — but it cannot deploy and it cannot approve.
+ * resources, and open the AWS-access environment the app stacks use
+ * (cloud-access/aws-access) so it can run a `pulumi preview` — but it cannot
+ * deploy and it cannot approve. Opening an environment is not deploying:
+ * without stack:write the role still cannot run `pulumi up`.
  *
  * What is NOT code (SaaS-only, see the RUNBOOK):
  *   - the Datadog MCP integration and the agent's Datadog/cloud credentials
@@ -14,26 +16,33 @@
  *   - the Datadog webhook trigger / automation that starts the agent. The
  *     Datadog webhook trigger is SaaS-only, so it is created in the console.
  */
-import * as pulumi from "@pulumi/pulumi";
 import * as ps from "@pulumi/pulumiservice";
 import * as cfg from "./config";
 
-export function createAgent(devEnvironment: ps.Environment): ps.api.agents.Definition {
+export function createAgent(): ps.api.agents.Definition {
+    // The ESC environment the app's stacks import for AWS credentials. Opening
+    // it lets the agent run `pulumi preview` to check a fix.
+    const awsAccess = ps.getEnvironmentOutput({
+        organizationName: cfg.org,
+        projectName: "cloud-access",
+        name: "aws-access",
+    });
+
     // Least privilege: read stacks, their update logs and state, search
-    // resources, and open only the dev AWS-access environment for a preview.
-    // No stack:write, so it cannot deploy. No approval scopes, so it cannot
-    // approve its own fix. Widening this takes a pull request.
+    // resources, and open only cloud-access/aws-access for a preview. No
+    // stack:write, so it cannot deploy. No approval scopes, so it cannot approve
+    // its own fix. Widening this takes a pull request.
     const role = new ps.OrganizationRole("email-troubleshooter-role", {
         organizationName: cfg.org,
         name: "reinvent-email-troubleshooter",
         description:
             "Read stacks, their history and state, search resources, open " +
-            `${cfg.accessProject}/aws-dev for previews. No deploy, no approve.`,
+            "cloud-access/aws-access for previews. No deploy, no approve.",
         permissions: ps.buildRolePermissionsOutput({
             organizationScopes: ["resources:search"],
             stackRules: [{ all: true, scopes: ["stack:read", "stack:export"] }],
             environmentRules: [{
-                id: devEnvironment.environmentId,
+                id: awsAccess.environmentId,
                 scopes: ["environment:read", "environment:open"],
             }],
         }).permissions,
@@ -48,7 +57,7 @@ export function createAgent(devEnvironment: ps.Environment): ps.api.agents.Defin
         "2. Decide whether this is an architectural gap, not a code typo. Here it is: the app calls SES to send mail but has no email infrastructure — no verified SES identity and no `ses:SendEmail` permission on the Lambda role.",
         "3. Do NOT write SES from scratch. Search the organization's private registry for an approved component that already does this. Use the `EmailSender` component (publisher `pequod`) — a verified SES sender plus a scoped send IAM policy.",
         "4. Wire `EmailSender` into `app/index.ts`: create it, and attach its `sendPolicyArn` to the API's Lambda role so the function can send. Pass the app's base tags.",
-        "5. Get short-lived AWS credentials from the dev ESC environment and run `pulumi preview` on the `reinvent-tasks/dev` stack. The guardrails policy pack runs in the preview.",
+        "5. Get short-lived AWS credentials by opening the cloud-access/aws-access ESC environment and run `pulumi preview` on the `reinvent-tasks/dev` stack. The guardrails policy pack runs in the preview.",
         "6. Read the policy results. Fix any violation exactly as its message says. Expect `require-email-compliance-tag`: the send policy needs a `data-classification` tag — add `tags: { \"data-classification\": \"restricted\" }` to the EmailSender inputs. Re-preview until the policy pack passes.",
         "7. Open ONE pull request against `main`. In the description give: a plain-language root cause (the app had no email infrastructure), the component you reused, the policy violation you fixed and how, and the clean `pulumi preview` summary.",
     ].join("\n");

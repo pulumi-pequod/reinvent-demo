@@ -34,9 +34,9 @@ state (see [Between runs](#between-runs)).
 
 - **Pulumi CLI v3.272.0+** (`pulumi version`), logged in to the **pequod** org.
 - **Node 18+** and **npm**.
-- **AWS**: a demo account (or accounts) with an IAM role per stage that trusts
-  Pulumi Cloud's OIDC issuer. ESC assumes `arn:aws:iam::<account>:role/pulumi-esc-<stage>`
-  (override names/accounts via `setup/` config). The role needs permissions to
+- **AWS**: the demo account reachable through the existing
+  **`cloud-access/aws-access`** ESC environment (OIDC, short-lived creds) — the
+  same env every app stack and the agent use. Its role needs permissions to
   create the app's resources (Lambda, API Gateway, DynamoDB, S3, IAM, SES).
 - **Datadog**: an account with log ingestion from the app's Lambda (CloudWatch →
   Datadog log forwarder), plus an API key and application key.
@@ -76,15 +76,15 @@ Note the published **version** (e.g. `0.2.0`); `setup/` references it via
 
 ### 3. Deploy `setup/`
 
-This stages ESC, the Datadog monitor + webhook, the policy group, the agent, and
-the approver team.
+This stages the Datadog monitor + webhook, the policy group, the agent, and the
+approver team. (AWS creds come from the existing `cloud-access/aws-access` env,
+so there are no per-stage ESC environments to create.)
 
 ```bash
 cd setup && npm install
 pulumi stack init pequod/reinvent-setup/setup
 
-# Required config — replace with the real demo account id and approvers:
-pulumi config set awsAccount <DEMO_AWS_ACCOUNT_ID>
+# Required config — the approvers (at least two real people):
 pulumi config set --path approvers[0] <approver-1-login>
 pulumi config set --path approvers[1] <approver-2-login>
 ```
@@ -111,15 +111,13 @@ pulumi up
 ```
 
 This creates:
-- ESC environments `demo-access/aws-dev`, `aws-staging`, `aws-prod` (AWS OIDC,
-  short-lived creds). `aws-staging` and `aws-prod` get an **ApprovalRule** on
-  updates.
 - The **Datadog log monitor** on `reminder_send_failed` and the **Datadog
   webhook** `reinvent-agent`.
 - The **policy group** `reinvent-demo` binding the guardrails pack to the
   `reinvent-tasks` dev/staging/prod stacks.
 - The **agent** `reinvent-email-troubleshooter` (its own identity + a
-  least-privilege role that can preview dev but not deploy or approve).
+  least-privilege role that can open `cloud-access/aws-access` to preview dev but
+  not deploy or approve).
 - The **approver team** `reinvent-approvers`.
 
 ### 4. Console steps (SaaS-only — can't be code yet)
@@ -140,10 +138,12 @@ the resulting values back into config/ESC:
    secret in the `demo-secrets/reinvent` ESC environment, then re-run `pulumi up`
    in `setup/` so the Datadog webhook points at the trigger with the right
    header.
-3. **(Optional) ESC credential-open approval.** The provider's `ApprovalRule`
-   gates environment *updates*. If you also want staging/prod credential *opens*
-   to require approval, enable it on those environments in the ESC console. The
-   agent only ever opens `aws-dev`, so this never blocks the demo.
+3. **(Optional) staging/prod governance.** Human approval before prod is
+   enforced by the pipeline's prod gate (`delivery/`). If you additionally want
+   credential access on staging/prod to require approval, enable ESC
+   change-management on `cloud-access/aws-access` (or a staging/prod-specific
+   env) in the console. The agent only ever previews dev, so this never blocks
+   the demo.
 
 ### 5. Deploy the app stacks
 
@@ -156,8 +156,8 @@ for s in dev staging prod; do
 done
 ```
 
-Each stack imports its matching ESC environment (`demo-access/aws-<stage>`). At
-this point `/remind` is genuinely broken on every stage.
+Each stack imports `cloud-access/aws-access` for AWS creds. At this point
+`/remind` is genuinely broken on every stage.
 
 ### 6. Deploy the pipeline
 
@@ -179,7 +179,7 @@ it doesn't in _italics_.
 ```bash
 # AWS creds resolve through ESC (no static keys):
 cd app && pulumi stack select pequod/reinvent-tasks/dev
-pulumi env open demo-access/aws-dev           # prints short-lived AWS creds + region
+pulumi env open cloud-access/aws-access       # prints short-lived AWS creds + region
 
 # A dev preview runs and the policy pack is attached:
 pulumi preview --policy-pack ../policies      # or rely on the policy group
@@ -212,9 +212,9 @@ webhook URL/secret and that the monitor message contains `@webhook-reinvent-agen
 
 **The agent reads the alert and the failing stack, identifies the architectural
 gap (no email infrastructure), finds `EmailSender` in the registry, wires it in,
-opens the dev ESC env, and runs `pulumi preview` on `reinvent-tasks/dev`.** _If
-it can't preview, confirm the agent role has `environment:open` on `aws-dev` and
-`stack:read`._
+opens `cloud-access/aws-access`, and runs `pulumi preview` on
+`reinvent-tasks/dev`.** _If it can't preview, confirm the agent role has
+`environment:open` on `cloud-access/aws-access` and `stack:read`._
 
 ### 4. The policy catch and fix
 

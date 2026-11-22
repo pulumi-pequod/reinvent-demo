@@ -1,4 +1,4 @@
 environment:
-  - demo-access/aws-dev
+  - cloud-access/aws-access
 config:
   reinvent-tasks:stage: dev

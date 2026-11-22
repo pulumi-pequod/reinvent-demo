@@ -1,16 +1,12 @@
 # Config for the one-time setup stack (pequod/reinvent-setup/setup).
 #
 # Import an ESC environment that supplies the secrets (Datadog keys, the Pulumi
-# trigger secret) so nothing secret lives in this file. Replace the AWS account
-# id and, after the console steps, the trigger URL/integration id. See RUNBOOK.
+# trigger secret) so nothing secret lives in this file. After the console steps,
+# fill in the trigger URL/integration id. See RUNBOOK.
 environment:
-  - cloud-access/pulumi-cloud-access   # the token/creds this program deploys with
   - demo-secrets/reinvent              # Datadog keys + Pulumi trigger secret (see RUNBOOK)
 config:
-  reinvent-setup:awsAccount: "000000000000"
-  reinvent-setup:awsRegion: us-west-2
   reinvent-setup:appProject: reinvent-tasks
-  reinvent-setup:accessProject: demo-access
   reinvent-setup:datadogSite: datadoghq.com
   reinvent-setup:approvers:
     - v-adam-pulumi-corp

@@ -14,7 +14,7 @@ See **[RUNBOOK.md](./RUNBOOK.md)** for how to deploy, test, and record the demo.
 
 | Path | What it is | How it ships |
 | --- | --- | --- |
-| `setup/` | One-time Pulumi program that stages the demo environment: per-stage ESC environments (AWS OIDC + approvals), the Datadog monitor + agent webhook, the custom agent (identity + role + instructions), the guardrails policy group, and the approver team. | `pulumi up` once |
+| `setup/` | One-time Pulumi program that stages the demo environment: the Datadog monitor + agent webhook, the custom agent (identity + role + instructions), the guardrails policy group, and the approver team. AWS creds come from the existing `cloud-access/aws-access` ESC environment. | `pulumi up` once |
 | `app/` | Task-tracker: a DynamoDB table assembled with the `LambdaApi` and `StaticWebsite` components. `/remind` really calls SES and fails until EmailSender is wired in. | `pulumi up` per stage |
 | `components/serverless-api/` | `LambdaApi` component — IAM role + Lambda + API Gateway v2 HTTP API. | publish to the pequod registry |
 | `components/static-website/` | `StaticWebsite` component — public S3 website bucket. | publish to the pequod registry |
@@ -27,8 +27,8 @@ and `delivery/` are the **demo code** that gets used and updated during the demo
 
 The app is built from custom components wherever possible — `LambdaApi` for the
 API/compute and `StaticWebsite` for the UI. Only the DynamoDB table and the
-handler code are app-specific. Each app stack imports its per-stage ESC
-environment (`demo-access/aws-<stage>`) for short-lived AWS creds — no static
+handler code are app-specific. Each app stack imports the existing
+`cloud-access/aws-access` ESC environment for short-lived AWS creds — no static
 keys in this repo.
 
 > **Why `/remind` fails.** The handler calls `ses:SendEmail` from an unverified

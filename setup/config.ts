@@ -15,40 +15,13 @@ export const org = pulumi.getOrganization();
 /** The Pulumi project the demo app ships as (its stacks are dev/staging/prod). */
 export const appProject = cfg.get("appProject") ?? "reinvent-tasks";
 
-/** The ESC project that holds the per-stage AWS-access environments. */
-export const accessProject = cfg.get("accessProject") ?? "demo-access";
-
 /** The three demo stages, in release order. */
 export const stages = ["dev", "staging", "prod"] as const;
 export type Stage = (typeof stages)[number];
 
-/** AWS region the demo runs in. */
-export const awsRegion = cfg.get("awsRegion") ?? "us-west-2";
-
 /**
- * AWS account id per stage. Defaults to a single demo account for all three; set
- * `awsAccount<Stage>` to split stages across accounts. Replace the default with
- * the real demo account id (or set it in config) before deploying.
- */
-export function awsAccountId(stage: Stage): string {
-    const perStage = cfg.get(`awsAccount${cap(stage)}`);
-    return perStage ?? cfg.get("awsAccount") ?? "000000000000";
-}
-
-/** Name of the IAM role ESC assumes via OIDC for a given stage. */
-export function oidcRoleName(stage: Stage): string {
-    return cfg.get(`oidcRole${cap(stage)}`) ?? `pulumi-esc-${stage}`;
-}
-
-/** The full role ARN ESC assumes via OIDC for a stage. */
-export function oidcRoleArn(stage: Stage): string {
-    return `arn:aws:iam::${awsAccountId(stage)}:role/${oidcRoleName(stage)}`;
-}
-
-/**
- * Pulumi Cloud usernames that may approve. Used both for the ESC approval rules
- * on staging/prod and as the pipeline's prod approvers. The person who starts a
- * pipeline run can't approve it, so keep at least two real people here.
+ * Pulumi Cloud usernames that may approve the pipeline's prod gate. The person
+ * who starts a pipeline run can't approve it, so keep at least two real people.
  */
 export const approvers = cfg.getObject<string[]>("approvers") ?? ["v-adam-pulumi-corp"];
 
@@ -74,7 +47,3 @@ export const pulumiTriggerSecret = cfg.getSecret("pulumiTriggerSecret");
  * created, set `datadogIntegrationId` in config so it is enabled on the agent.
  */
 export const datadogIntegrationId = cfg.get("datadogIntegrationId");
-
-function cap(s: string): string {
-    return s.charAt(0).toUpperCase() + s.slice(1);
-}
