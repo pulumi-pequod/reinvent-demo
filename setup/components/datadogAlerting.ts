@@ -90,7 +90,8 @@ export class DatadogAlerting extends pulumi.ComponentResource {
             includeTags: true,
             notifyNoData: false,
             renotifyInterval: 0,
-        }, childOpts);
+            // Create the webhook first so @webhook-reinvent-agent resolves.
+        }, { ...childOpts, dependsOn: [webhook] });
 
         this.monitorId = monitor.id;
         this.webhookName = webhook.name;
