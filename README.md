@@ -1,71 +1,56 @@
-# re:Invent Demo — Task Tracker
+# re:Invent Demo — Task Tracker + Pulumi Agents + Pulumi Delivery
 
-Scaffolding for the re:Invent live demo. A serverless **task-tracker** app where
-each task has a **"Remind"** button. Email delivery is deliberately **not** wired
-up yet — the `EmailSender` component is published and ready to drop in.
+A serverless **task-tracker** app whose **"Remind"** button really tries to send
+email through Amazon SES — and fails, because the app has no email
+infrastructure. A Datadog monitor catches the error and triggers a **Pulumi
+Agent**, which finds the org's approved **EmailSender** component in the private
+registry, previews the fix against dev (where the guardrails **policy pack**
+catches a missing tag and the agent fixes it), and opens a PR. After a human
+merges, **Pulumi Delivery** ships it dev → staging → an approval gate → prod.
+
+See **[RUNBOOK.md](./RUNBOOK.md)** for how to deploy, test, and record the demo.
 
 ## Layout
 
-| Path            | What it is | How it ships |
-| --------------- | ---------- | ------------ |
-| `app/`          | Task-tracker: a DynamoDB table assembled with the `LambdaApi` and `StaticWebsite` components. The Lambda handler lives in `app/handler/`. `/remind` is a 501 stub. | `pulumi up` per stage |
-| `components/serverless-api/`| `LambdaApi` component — IAM role + Lambda + API Gateway v2 HTTP API. | **publish to the pequod registry** (`pulumi package publish`) |
-| `components/static-website/`| `StaticWebsite` component — public S3 website bucket serving an index document. | **publish to the pequod registry** (`pulumi package publish`) |
-| `components/ses/`| `EmailSender` component (verified SES sender + scoped send IAM policy). | **publish to the pequod registry** (`pulumi package publish`) |
-| `policies/`     | Guardrails policy pack (DynamoDB PITR + on-demand billing + required tags). | `--policy-pack` on preview/up |
+| Path | What it is | How it ships |
+| --- | --- | --- |
+| `setup/` | One-time Pulumi program that stages the demo environment: the Datadog monitor + agent webhook, the custom agent (identity + role + instructions), the guardrails policy group, and the approver team. AWS creds come from the existing `cloud-access/aws-access` ESC environment. | `pulumi up` once |
+| `app/` | Task-tracker: a DynamoDB table assembled with the `LambdaApi` and `StaticWebsite` components. `/remind` really calls SES and fails until EmailSender is wired in. | `pulumi up` per stage |
+| `components/serverless-api/` | `LambdaApi` component — IAM role + Lambda + API Gateway v2 HTTP API. | publish to the pequod registry |
+| `components/static-website/` | `StaticWebsite` component — public S3 website bucket. | publish to the pequod registry |
+| `components/ses/` | `EmailSender` component (verified SES sender + scoped send IAM policy). **Published but unused by the app** — the approved pattern the agent finds. | publish to the pequod registry |
+| `policies/` | Guardrails policy pack: SES rules + the deterministic agent-trip tag rule + DynamoDB/tagging rules. Local tests in `policies/tests`. | `pulumi policy publish` |
+| `delivery/` | The release pipeline (Pulumi Delivery): dev → staging → approval gate → prod. | `pulumi up` |
+
+`setup/` is **staged setup** (deploy once); `app/`, `components/`, `policies/`,
+and `delivery/` are the **demo code** that gets used and updated during the demo.
 
 The app is built from custom components wherever possible — `LambdaApi` for the
-API/compute, `StaticWebsite` for the UI, and `@pulumi-pequod/stackmgmt`
-(`StackSettings`) for stack settings. Only the DynamoDB table (the data model)
-and the handler code remain app-specific. Each app stack imports the existing
-`cloud-access/aws-access` ESC environment for AWS creds — no static keys in this
-repo.
+API/compute and `StaticWebsite` for the UI. Only the DynamoDB table and the
+handler code are app-specific. Each app stack imports the existing
+`cloud-access/aws-access` ESC environment for short-lived AWS creds — no static
+keys in this repo.
 
-> **Component references.** The app consumes the components by local path in its
-> `packages:` block (`../components/serverless-api`, `../components/static-website`),
-> matching how pequod consumes components (source-based, via path or GitHub URL —
-> not a registry string). `pulumi install` generates the local SDKs, imported as
-> `@pulumi/serverless-api` and `@pulumi/static-website`. The `pulumi package
-> publish` commands below still publish them to the registry for the catalog.
+> **Why `/remind` fails.** The handler calls `ses:SendEmail` from an unverified
+> address with no send permission on the Lambda role, so SES rejects it. The
+> handler logs a structured `reminder_send_failed` error (which Datadog watches)
+> and returns 502. Wiring in `EmailSender` — and tagging its send policy per the
+> policy pack — is the fix.
 
 > The Lambda handler is a plain `app/handler/index.js` (a code asset), not an
-> inline `CallbackFunction` — a published multi-language component can't receive
-> a JS callback across the provider boundary. The Node.js 18 runtime ships the
-> AWS SDK v3, so the handler needs no bundled dependencies.
+> inline callback — a published multi-language component can't receive a JS
+> callback across the provider boundary. The Node.js 18 runtime ships the AWS
+> SDK v3, so the handler needs no bundled dependencies.
 
-## Run order
+## Requirements
 
-```bash
-# 1. The app (dev stack imports cloud-access/aws-access for AWS creds)
-cd app && pulumi install && pulumi stack init pequod/reinvent-tasks/dev && pulumi up
+- Pulumi CLI **v3.272.0+** (for Pulumi Delivery) on macOS or Linux.
+- A pequod Pulumi Cloud org, a demo AWS account with per-stage OIDC roles, and a
+  Datadog account. Pulumi Delivery and Pulumi Agents are in **public preview**.
 
-# 2. Try it
-open "$(pulumi stack output siteUrl)"            # static task UI
-curl "$(pulumi stack output apiUrl)/tasks"       # -> []
-curl -X POST "$(pulumi stack output apiUrl)/remind" -d '{"taskId":"x"}'   # -> 501 (not implemented)
-
-# 3. (optional) run with guardrails
-pulumi preview --policy-pack ../policies
-```
-
-## Email reminders
-
-`POST /remind` returns `501 not-implemented` — email delivery is intentionally
-left unimplemented. The `EmailSender` component (`components/ses/`) is published
-and ready to wire in when the feature is built.
-
-## Publishing the components
+## Quick local checks (no deploy)
 
 ```bash
-# SES EmailSender
-cd components/ses && npm install
-pulumi package publish . --publisher pequod
-
-# Serverless API (LambdaApi)
-cd ../serverless-api && npm install
-pulumi package publish . --publisher pequod
-
-# Static Website
-cd ../static-website && npm install
-pulumi package publish . --publisher pequod
+cd policies && npm install && npm test   # policy unit tests
+cd setup && npm install && npm run typecheck
 ```

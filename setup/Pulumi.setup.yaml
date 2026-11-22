@@ -1,0 +1,16 @@
+# Config for the one-time setup stack (pequod/reinvent-setup/setup).
+#
+# Import an ESC environment that supplies the secrets (Datadog keys, the Pulumi
+# trigger secret) so nothing secret lives in this file. After the console steps,
+# fill in the trigger URL/integration id. See RUNBOOK.
+environment:
+  - demo-secrets/reinvent              # Datadog keys + Pulumi trigger secret (see RUNBOOK)
+config:
+  reinvent-setup:appProject: reinvent-tasks
+  reinvent-setup:datadogSite: datadoghq.com
+  reinvent-setup:approvers:
+    - ishmael-archie
+    - ishmael-betty
+  # Set after the SaaS-only console steps (see RUNBOOK):
+  # reinvent-setup:pulumiTriggerUrl: https://api.pulumi.com/...
+  # reinvent-setup:datadogIntegrationId: "..."

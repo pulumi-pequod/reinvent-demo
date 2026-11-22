@@ -1,0 +1,16 @@
+{
+  "name": "reinvent-delivery",
+  "private": true,
+  "main": "index.ts",
+  "dependencies": {
+    "@pulumi/delivery": "^0.2.0",
+    "@pulumi/pulumi": "^3.272.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  },
+  "allowScripts": {
+    "file:sdks/delivery-delivery": true
+  }
+}

@@ -1,4 +1,7 @@
 runtime: nodejs
 description: >-
-  Guardrails for the re:Invent task-tracker demo: DynamoDB point-in-time
-  recovery, on-demand billing, and required project tags.
+  Guardrails for the re:Invent task-tracker demo. SES guardrails (no wildcard
+  ses:*, send scoped to a verified identity, and a required data-classification
+  tag on send policies) plus DynamoDB point-in-time recovery, on-demand billing,
+  and project tags. A mix of mandatory and advisory rules that show up in the
+  agent's dev preview.
