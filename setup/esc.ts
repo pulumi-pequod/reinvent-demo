@@ -70,7 +70,7 @@ export function createEnvironments(): Record<cfg.Stage, ps.Environment> {
                     numApprovalsRequired: 1,
                     allowSelfApproval: false,
                     requireReapprovalOnChange: true,
-                    eligibleApprovers: cfg.approvers,
+                    eligibleApprovers: cfg.approvers.map((user) => ({ user })),
                 },
             }, { dependsOn: [env] });
         }
