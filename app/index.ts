@@ -8,12 +8,12 @@
  *   - LambdaApi     : role + Lambda (handler/) + API Gateway v2 HTTP API.
  *   - StaticWebsite : public S3 bucket serving the task UI.
  *
- * The "Remind" button hits POST /remind, which really tries to send through
- * Amazon SES. The app has no email infrastructure (no verified SES identity, and
- * the Lambda role has no ses:SendEmail permission), so the send fails and the
- * handler logs a structured `reminder_send_failed` error. The approved
- * EmailSender component (components/ses) is published to the registry but not
- * wired in here — wiring it in is the fix.
+ *   - EmailSender   : approved SES component (private registry) — sender
+ *                     identity + scoped send policy for the Lambda role.
+ *
+ * The "Remind" button hits POST /remind, which sends through Amazon SES. The
+ * EmailSender component provides the sender identity and a least-privilege
+ * ses:SendEmail policy that is attached to the Lambda's execution role.
  *
  * AWS credentials and config come from the ESC environment imported by each
  * stack's Pulumi.<stack>.yaml — no static secrets or providers configured here.
@@ -23,6 +23,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as pulumi from "@pulumi/pulumi";
 import * as serverlessApi from "@pulumi-pequod/serverless-api";
+import * as ses from "@pulumi-pequod/ses";
 import * as staticWebsite from "@pulumi-pequod/static-website";
 import * as aws from "@pulumi/aws";
 import * as service from "@pulumi/pulumiservice";
@@ -71,6 +72,20 @@ const tasksAccessPolicy = tasksTable.arn.apply((tableArn) =>
 );
 
 // ---------------------------------------------------------------------------
+// Email: SES sender identity + scoped send policy, via the approved
+// EmailSender component from the private registry
+// ---------------------------------------------------------------------------
+// The sender address lives on a domain that is already a verified SES identity
+// in this account/region, so no per-address identity is created (nothing goes
+// "Pending") and the send policy is scoped to that domain identity.
+const emailSender = new ses.EmailSender(`${appName}-email`, {
+  senderEmail: config.get("reminderFrom") ?? "reminders@pulumi-ce.team",
+  verifySenderAddress: false,
+  // Required by the guardrails policy pack (require-email-compliance-tag).
+  tags: { "data-classification": "restricted" },
+});
+
+// ---------------------------------------------------------------------------
 // API: role + Lambda + API Gateway, via the serverless-api component
 // ---------------------------------------------------------------------------
 const api = new serverlessApi.LambdaApi(`${appName}-api`, {
@@ -80,10 +95,8 @@ const api = new serverlessApi.LambdaApi(`${appName}-api`, {
   environment: {
     TABLE_NAME: tasksTable.name,
     STAGE: stage,
-    // The "from" address for reminders. There is no verified SES identity for
-    // it and no send permission on the Lambda role, so /remind fails until the
-    // EmailSender component is wired in.
-    REMINDER_FROM: config.get("reminderFrom") ?? "reminders@demo.pequod.dev",
+    // The "from" address for reminders (verified via EmailSender above).
+    REMINDER_FROM: emailSender.senderEmail,
   },
   inlinePolicy: tasksAccessPolicy,
   routes: [
@@ -93,6 +106,12 @@ const api = new serverlessApi.LambdaApi(`${appName}-api`, {
     { method: "POST", path: "/remind" },
   ],
   tags: baseTags,
+});
+
+// Grant the Lambda's execution role permission to send through SES.
+new aws.iam.RolePolicyAttachment(`${appName}-email-send`, {
+  role: api.executionRoleName,
+  policyArn: emailSender.sendPolicyArn,
 });
 
 // ---------------------------------------------------------------------------
