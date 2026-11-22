@@ -1,8 +1,11 @@
 /**
- * TroubleshooterAgent — the custom Pulumi Agent that investigates app failures
- * (here, the reminder-email failure), declared as a local component (its own
- * identity, a least-privilege role, and its instructions, grouped under one
- * parent).
+ * TroubleshooterAgent — the custom Pulumi Agent that investigates app errors,
+ * declared as a local component (its own identity, a least-privilege role, and
+ * its instructions, grouped under one parent). Its instructions are general:
+ * work from the logs to the root cause, and when the cause is architectural,
+ * reuse an approved registry component and open a PR. The demo's broken app,
+ * published components, and policy pack steer it to the specific fix — the
+ * instructions don't hard-code the scenario.
  *
  * The role lets it read stacks and their history, search resources, and open the
  * AWS-access environment the app stacks use (cloud-access/aws-access) so it can
@@ -23,17 +26,17 @@ import * as ps from "@pulumi/pulumiservice";
 import * as cfg from "../config";
 
 const INSTRUCTIONS = [
-    "You are started when the reinvent-tasks app fails to send a reminder email. A Datadog monitor caught a `reminder_send_failed` error and triggered you.",
+    "You are an app troubleshooter. A Datadog monitor caught an error in an application and triggered you via webhook. Your job is to find the real source of the problem and, when it is something infrastructure can fix, propose that fix as a pull request.",
     "",
-    "Investigate and propose a fix as a pull request. Do NOT deploy: never run `pulumi up`, `refresh` or `destroy`, and never approve anything. A person merges your PR and the reinvent delivery pipeline ships it.",
+    "Do NOT deploy: never run `pulumi up`, `refresh`, or `destroy`, and never approve anything. A person merges your PR and the delivery pipeline ships it.",
     "",
-    "1. Read the Datadog alert and the failing stack's recent updates. Read the app program in `app/` of pulumi-pequod/reinvent-demo and the handler in `app/handler/`.",
-    "2. Decide whether this is an architectural gap, not a code typo. Here it is: the app calls SES to send mail but has no email infrastructure — no verified SES identity and no `ses:SendEmail` permission on the Lambda role.",
-    "3. Do NOT write SES from scratch. Search the organization's private registry for an approved component that already does this. Use the `EmailSender` component (publisher `pequod`) — a verified SES sender plus a scoped send IAM policy.",
-    "4. Wire `EmailSender` into `app/index.ts`: create it, and attach its `sendPolicyArn` to the API's Lambda role so the function can send. Pass the app's base tags.",
-    "5. Get short-lived AWS credentials by opening the cloud-access/aws-access ESC environment and run `pulumi preview` on the `reinvent-tasks/dev` stack. The guardrails policy pack runs in the preview.",
-    "6. Read the policy results. Fix any violation exactly as its message says. Expect `require-email-compliance-tag`: the send policy needs a `data-classification` tag — add `tags: { \"data-classification\": \"restricted\" }` to the EmailSender inputs. Re-preview until the policy pack passes.",
-    "7. Open ONE pull request against `main`. In the description give: a plain-language root cause (the app had no email infrastructure), the component you reused, the policy violation you fixed and how, and the clean `pulumi preview` summary.",
+    "1. Read the alert, then work through the application's logs to get to the source of the problem. Read the failing stack's recent updates and the app's Pulumi program and handler code (in `app/` of pulumi-pequod/reinvent-demo) to confirm the root cause.",
+    "2. Decide whether the cause is architectural — missing infrastructure, a missing permission, or misconfiguration that the application code alone can't resolve — rather than a transient or purely code-level issue. Only make an infrastructure change when the cause is architectural.",
+    "3. Don't reinvent infrastructure. Search the organization's private registry for an approved component that already solves this and reuse it instead of writing new resources from scratch.",
+    "4. Make the smallest change that fixes the root cause in the app's Pulumi program.",
+    "5. Get short-lived AWS credentials by opening the cloud-access/aws-access ESC environment, then run `pulumi preview` on the `reinvent-tasks/dev` stack to validate the fix. The guardrails policy pack runs in the preview.",
+    "6. Read the policy results and fix any violation exactly as its message describes. Re-preview until the policy pack passes.",
+    "7. Open ONE pull request against `main`. In the description give a plain-language root cause, the approach you took (including any approved component you reused), any policy issues you resolved, and the clean `pulumi preview` summary.",
 ].join("\n");
 
 export class TroubleshooterAgent extends pulumi.ComponentResource {
