@@ -188,7 +188,7 @@ same commit.
 Least privilege, as code. The guardrails aren't a prompt — they're the role.
 
 ```
-   setup/agent.ts   reinvent-email-troubleshooter
+   setup/components/troubleshooterAgent.ts   reinvent-app-troubleshooter
    ┌───────────────────────────────────────────────────────────────┐
    │ IDENTITY   its own agent identity (not a human's)              │
    │ ROLE       OrganizationRole, built from explicit scopes:       │

@@ -1,7 +1,8 @@
 /**
- * TroubleshooterAgent — the custom Pulumi Agent that investigates the email
- * failure, declared as a local component (its own identity, a least-privilege
- * role, and its instructions, grouped under one parent).
+ * TroubleshooterAgent — the custom Pulumi Agent that investigates app failures
+ * (here, the reminder-email failure), declared as a local component (its own
+ * identity, a least-privilege role, and its instructions, grouped under one
+ * parent).
  *
  * The role lets it read stacks and their history, search resources, and open the
  * AWS-access environment the app stacks use (cloud-access/aws-access) so it can
@@ -56,7 +57,7 @@ export class TroubleshooterAgent extends pulumi.ComponentResource {
         // approve its own fix. Widening this takes a pull request.
         const role = new ps.OrganizationRole(`${name}-role`, {
             organizationName: cfg.org,
-            name: "reinvent-email-troubleshooter",
+            name: "reinvent-app-troubleshooter",
             description:
                 "Read stacks, their history and state, search resources, open " +
                 "cloud-access/aws-access for previews. No deploy, no approve.",
@@ -72,9 +73,9 @@ export class TroubleshooterAgent extends pulumi.ComponentResource {
 
         const agent = new ps.api.agents.Definition(`${name}-agent`, {
             orgName: cfg.org,
-            name: "reinvent-email-troubleshooter",
-            displayName: "Email Troubleshooter",
-            purpose: "When reinvent-tasks can't send reminder emails, find the root cause and open a pull request with the fix.",
+            name: "reinvent-app-troubleshooter",
+            displayName: "App Troubleshooter",
+            purpose: "When a Datadog alert fires on the reinvent-tasks app, find the root cause and open a pull request with the fix.",
             customInstructions: INSTRUCTIONS,
             roleId: role.roleId,
             // Enable the Datadog MCP integration (created in the console) so the

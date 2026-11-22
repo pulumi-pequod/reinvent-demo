@@ -116,7 +116,7 @@ This creates:
   webhook** `reinvent-agent`.
 - The **policy group** `reinvent-demo` binding the guardrails pack to the
   `reinvent-tasks` dev/staging/prod stacks.
-- The **agent** `reinvent-email-troubleshooter` (its own identity + a
+- The **agent** `reinvent-app-troubleshooter` (its own identity + a
   least-privilege role that can open `cloud-access/aws-access` to preview dev but
   not deploy or approve).
 - The **approver team** `reinvent-approvers`.
@@ -134,7 +134,7 @@ the resulting values back into config/ESC:
    it's enabled on the agent.
 2. **Datadog webhook automation (the trigger).** In Pulumi Cloud → Agents, create
    a **webhook automation with the Datadog preset** targeting the
-   `reinvent-email-troubleshooter` agent. This mints the **trigger URL** and
+   `reinvent-app-troubleshooter` agent. This mints the **trigger URL** and
    **trigger secret**. Put the URL in `reinvent-setup:pulumiTriggerUrl` and the
    secret in the `demo-secrets/reinvent` ESC environment, then re-run `pulumi up`
    in `setup/` so the Datadog webhook points at the trigger with the right
@@ -213,7 +213,7 @@ still deployed — redeploy the broken `app/` (see [Between runs](#between-runs)
 
 **Within ~1–5 min the monitor "reinvent-tasks: reminder email failed to send"
 goes ALERT and calls `@webhook-reinvent-agent`; a new task appears under the
-`reinvent-email-troubleshooter` agent in Pulumi Cloud.** _If the monitor doesn't
+`reinvent-app-troubleshooter` agent in Pulumi Cloud.** _If the monitor doesn't
 fire, confirm logs are reaching Datadog (`service:reinvent-tasks
 @event:reminder_send_failed`). If it fires but no agent task starts, re-check the
 webhook URL/secret and that the monitor message contains `@webhook-reinvent-agent`._
