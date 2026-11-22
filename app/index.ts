@@ -8,8 +8,12 @@
  *   - LambdaApi     : role + Lambda (handler/) + API Gateway v2 HTTP API.
  *   - StaticWebsite : public S3 bucket serving the task UI.
  *
- * The "Remind" button hits POST /remind, which returns 501 — email delivery is
- * intentionally left unimplemented.
+ * The "Remind" button hits POST /remind, which really tries to send through
+ * Amazon SES. The app has no email infrastructure (no verified SES identity, and
+ * the Lambda role has no ses:SendEmail permission), so the send fails and the
+ * handler logs a structured `reminder_send_failed` error. The approved
+ * EmailSender component (components/ses) is published to the registry but not
+ * wired in here — wiring it in is the fix.
  *
  * AWS credentials and config come from the ESC environment imported by each
  * stack's Pulumi.<stack>.yaml — no static secrets or providers configured here.
@@ -73,7 +77,14 @@ const api = new serverlessApi.LambdaApi(`${appName}-api`, {
   code: new pulumi.asset.FileArchive("./handler"),
   handler: "index.handler",
   stageName: stage,
-  environment: { TABLE_NAME: tasksTable.name },
+  environment: {
+    TABLE_NAME: tasksTable.name,
+    STAGE: stage,
+    // The "from" address for reminders. There is no verified SES identity for
+    // it and no send permission on the Lambda role, so /remind fails until the
+    // EmailSender component is wired in.
+    REMINDER_FROM: config.get("reminderFrom") ?? "reminders@demo.pequod.dev",
+  },
   inlinePolicy: tasksAccessPolicy,
   routes: [
     { method: "GET", path: "/tasks" },

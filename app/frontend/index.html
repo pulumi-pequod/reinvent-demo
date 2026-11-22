@@ -246,7 +246,7 @@
             if (res.ok) {
                 toast(`Reminder sent to ${task.assigneeEmail || "assignee"}`);
             } else {
-                toast(body.message || "Reminders are not available yet.");
+                toast(body.message || "Could not send the reminder email.");
             }
         }
 
