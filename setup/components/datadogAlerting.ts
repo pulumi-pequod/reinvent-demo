@@ -69,11 +69,18 @@ export class DatadogAlerting extends pulumi.ComponentResource {
 
         // Log alert: any `reminder_send_failed` error from the app in the last 5
         // minutes. Notifying @webhook-reinvent-agent starts the agent.
+        //
+        // The query matches the unique error string as full text rather than a
+        // `service:`/`@event:` facet: the Datadog Forwarder derives `service`
+        // from the Lambda function name (a per-deploy hash, e.g.
+        // reinvent-tasks-api-fn-XXXX), and the embedded JSON isn't auto-parsed
+        // into facets, so neither facet reliably matches. `reminder_send_failed`
+        // is unique to this app, and autosubscription is tag-filtered to it.
         const monitor = new datadog.Monitor(`${name}-monitor`, {
             name: "reinvent-tasks: reminder email failed to send",
             type: "log alert",
             query:
-                'logs("service:reinvent-tasks @event:reminder_send_failed").index("*").rollup("count").last("5m") > 0',
+                'logs("reminder_send_failed").index("*").rollup("count").last("5m") > 0',
             message: [
                 "The reinvent-tasks app failed to send a reminder email.",
                 "",
