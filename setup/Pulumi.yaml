@@ -5,7 +5,5 @@ runtime:
     packagemanager: npm
 description: >-
   One-time setup for the re:Invent demo: the guardrails policy group, the
-  Datadog monitor and agent webhook, the custom Pulumi Agent (identity + role +
-  instructions), and the approver team. AWS creds come from the existing
-  cloud-access/aws-access ESC environment. Deploy once; this does not deploy the
-  app or the pipeline.
+  Datadog monitor and agent webhook, the custom Pulumi Agent, and the approver
+  team. Deploy once; does not deploy the app or the pipeline.
