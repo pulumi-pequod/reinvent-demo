@@ -1,4 +1,4 @@
 environment:
-  - cloud-access/aws-access
+  - demo-access/aws-prod
 config:
   reinvent-tasks:stage: prod

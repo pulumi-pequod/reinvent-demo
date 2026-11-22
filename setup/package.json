@@ -1,0 +1,17 @@
+{
+  "name": "reinvent-setup",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pulumi/datadog": "^4.0.0",
+    "@pulumi/pulumi": "^3.272.0",
+    "@pulumi/pulumiservice": "1.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

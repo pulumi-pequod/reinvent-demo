@@ -1,0 +1,10 @@
+name: reinvent-setup
+runtime:
+  name: nodejs
+  options:
+    packagemanager: npm
+description: >-
+  One-time setup for the re:Invent demo: per-stage ESC environments with AWS
+  OIDC and approvals, the guardrails policy group, the Datadog monitor and agent
+  webhook, the custom Pulumi Agent (identity + role + instructions), and the
+  approver team. Deploy once; this does not deploy the app or the pipeline.
