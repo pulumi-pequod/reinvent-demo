@@ -9,8 +9,8 @@ config:
   reinvent-setup:appProject: reinvent-tasks
   reinvent-setup:datadogSite: datadoghq.com
   reinvent-setup:approvers:
-    - v-adam-pulumi-corp
-    - elichtie
+    - ishmael-archie
+    - ishmael-betty
   # Set after the SaaS-only console steps (see RUNBOOK):
   # reinvent-setup:pulumiTriggerUrl: https://api.pulumi.com/...
   # reinvent-setup:datadogIntegrationId: "..."

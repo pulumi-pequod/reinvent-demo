@@ -21,9 +21,10 @@ export type Stage = (typeof stages)[number];
 
 /**
  * Pulumi Cloud usernames that may approve the pipeline's prod gate. The person
- * who starts a pipeline run can't approve it, so keep at least two real people.
+ * who starts a pipeline run can't approve it, so keep at least two. Defaults to
+ * the shared booth demo logins; add more freely.
  */
-export const approvers = cfg.getObject<string[]>("approvers") ?? ["v-adam-pulumi-corp"];
+export const approvers = cfg.getObject<string[]>("approvers") ?? ["ishmael-archie", "ishmael-betty"];
 
 /** Datadog site (datadoghq.com, datadoghq.eu, ...). */
 export const datadogSite = cfg.get("datadogSite") ?? "datadoghq.com";

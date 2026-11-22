@@ -7,8 +7,10 @@
  * prod preview. The person who starts a run can't approve it — Pulumi Delivery
  * enforces that.
  *
- * Requires Pulumi CLI v3.272.0+ on macOS or Linux. A plain `pulumi up` on this
- * stack starts a run and waits, printing what each gate is waiting for.
+ * Requires Pulumi CLI v3.272.0+ on macOS or Linux. Register the pipeline with
+ * `pulumi delivery register` (not `pulumi up`); after that, a merge to main that
+ * touches app/** or delivery/** cuts a release, and you can also start one from
+ * the pipeline view. A run holds at the prod gate until an approver continues it.
  *
  * This mirrors the pattern in pulumi-pequod/loop-demo (the full-loop reference).
  */
@@ -17,8 +19,11 @@ import * as delivery from "@pulumi/delivery";
 const ORG_REPO = "pulumi-pequod/reinvent-demo";
 
 // Keep this in sync with setup/ (reinvent-setup:approvers) and the approver
-// team. At least two real people so the run-starter can still find an approver.
-const APPROVERS = ["v-adam-pulumi-corp", "elichtie"];
+// team. The booth demo approves from a second account (the run-starter can't
+// approve their own run) — ishmael-archie / ishmael-betty are the shared demo
+// logins. Add more people freely; the gate just needs someone who isn't the
+// person who started the run.
+const APPROVERS = ["ishmael-archie", "ishmael-betty"];
 
 const repo = new delivery.GitHubSource("repo", {
     repository: ORG_REPO,

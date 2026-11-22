@@ -84,9 +84,10 @@ so there are no per-stage ESC environments to create.)
 cd setup && npm install
 pulumi stack init pequod/reinvent-setup/setup
 
-# Required config — the approvers (at least two real people):
-pulumi config set --path approvers[0] <approver-1-login>
-pulumi config set --path approvers[1] <approver-2-login>
+# Approvers default to the shared booth logins (ishmael-archie / ishmael-betty);
+# override only if you want different people:
+# pulumi config set --path approvers[0] <approver-1-login>
+# pulumi config set --path approvers[1] <approver-2-login>
 ```
 
 Secrets (Datadog keys, the Pulumi trigger secret) come from an **ESC
@@ -159,13 +160,22 @@ done
 Each stack imports `cloud-access/aws-access` for AWS creds. At this point
 `/remind` is genuinely broken on every stage.
 
-### 6. Deploy the pipeline
+### 6. Register the pipeline
+
+Pulumi Delivery doesn't create the stacks it runs — the app stacks from step 5
+must already exist. Register the pipeline with `pulumi delivery register` (not
+`pulumi up`), from a clean git checkout at a commit pushed to `main`:
 
 ```bash
 cd delivery && pulumi install     # runs `pulumi package add delivery`
 pulumi stack init pequod/reinvent-delivery/main
-pulumi up --yes                   # registers the pipeline; waits if a gate holds
+pulumi delivery register          # registers the pipeline the program declares
 ```
+
+Then grant the pipeline access to the `cloud-access/aws-access` ESC environment
+so its stage runs can get AWS creds. Once registered, a merge to `main` touching
+`app/**` or `delivery/**` cuts a release; you can also start one from the
+pipeline view in Pulumi Cloud.
 
 ---
 
