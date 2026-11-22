@@ -105,7 +105,12 @@ values:
       fn::secret: <PULUMI_TRIGGER_SECRET>
 ```
 
-`setup/Pulumi.setup.yaml` already imports `demo-secrets/reinvent`. Then:
+`setup/Pulumi.setup.yaml` already imports `demo-secrets/reinvent`.
+
+> **Order note:** the app stacks must *exist* before this runs — the policy group
+> binds to `reinvent-tasks` dev/staging/prod and 404s on a missing stack. Run the
+> `pulumi stack init` lines from step 5 first (init only; you deploy them in step
+> 5), then come back here.
 
 ```bash
 pulumi up
@@ -160,7 +165,36 @@ done
 Each stack imports `cloud-access/aws-access` for AWS creds. At this point
 `/remind` is genuinely broken on every stage.
 
-### 6. Register the pipeline
+### 6. Set up Datadog log forwarding (CloudWatch → Datadog)
+
+Nothing fires the monitor until the app's Lambda logs reach Datadog. The Lambda
+writes to **CloudWatch**; the **Datadog Forwarder Lambda** ships CloudWatch →
+Datadog. (A `curl` to the log intake reaches Datadog directly and is only good
+for a one-off bootstrap — real app logs need this forwarder.)
+
+1. **Install the Datadog Forwarder.** In Datadog → **Integrations → Amazon Web
+   Services** → your account → **Log Collection**, click **Install the Datadog
+   Forwarder** (or follow the [Forwarder guide](https://docs.datadoghq.com/logs/guide/forwarder/)).
+   It opens AWS **CloudFormation** pre-filled — deploy into the **demo account,
+   region `us-west-2`**, supplying your Datadog **API key** and **site**
+   (`datadoghq.com`). Wait for `CREATE_COMPLETE`; it creates a `datadog-forwarder`
+   Lambda.
+2. **Subscribe each app log group.** CloudWatch → **Log groups** →
+   `/aws/lambda/reinvent-tasks-api-<stage>…` → **Subscription filters → Create →
+   Lambda subscription filter**: destination = **datadog-forwarder**, filter
+   pattern **blank** (forward everything). Do this for every stage you'll trigger
+   on — at least the one you click **Remind** in; all three for the full demo.
+3. **Verify.** Click **Remind**, wait ~1 min, then search **Logs → Explorer** for
+   `service:reinvent-tasks @event:reminder_send_failed`. The line should appear
+   and the monitor should flip to ALERT (which fires the agent).
+
+Datadog auto-parses the JSON logs, so `service`, `@event`, and `@stage` are all
+searchable facets. **If logs never arrive:** confirm the error is in CloudWatch
+first (the log group above) — if it's there but not in Datadog, the subscription
+filter is missing or points at the wrong Forwarder; if it's not even in
+CloudWatch, the app isn't deployed to that stage or `/remind` isn't failing.
+
+### 7. Register the pipeline
 
 Pulumi Delivery doesn't create the stacks it runs — the app stacks from step 5
 must already exist. Register the pipeline with `pulumi delivery register` (not
@@ -215,8 +249,9 @@ still deployed — redeploy the broken `app/` (see [Between runs](#between-runs)
 goes ALERT and calls `@webhook-reinvent-agent`; a new task appears under the
 `reinvent-app-troubleshooter` agent in Pulumi Cloud.** _If the monitor doesn't
 fire, confirm logs are reaching Datadog (`service:reinvent-tasks
-@event:reminder_send_failed`). If it fires but no agent task starts, re-check the
-webhook URL/secret and that the monitor message contains `@webhook-reinvent-agent`._
+@event:reminder_send_failed`) — if that search is empty, log forwarding isn't set
+up (see Deploy step 6). If it fires but no agent task starts, re-check the webhook
+URL/secret and that the monitor message contains `@webhook-reinvent-agent`._
 
 ### 3. The agent investigates and previews
 
