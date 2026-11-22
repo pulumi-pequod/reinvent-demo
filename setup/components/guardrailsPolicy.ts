@@ -21,6 +21,11 @@ export class GuardrailsPolicy extends pulumi.ComponentResource {
         const group = new ps.PolicyGroup(`${name}-group`, {
             organizationName: cfg.org,
             name: "reinvent-demo",
+            // Preventative (not audit): mandatory violations block the operation,
+            // so the rules are enforced and visible on `pulumi preview`/`up` —
+            // the agent's dev preview stops on require-email-compliance-tag until
+            // it adds the tag.
+            mode: "preventative",
             policyPacks: [{ name: cfg.policyPackName, versionTag: cfg.policyPackVersion }],
             stacks: cfg.stages.map((stage) => ({
                 name: stage,
