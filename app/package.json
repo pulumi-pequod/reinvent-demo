@@ -4,6 +4,7 @@
   "main": "index.ts",
   "dependencies": {
     "@pulumi-pequod/serverless-api": "file:sdks/pulumi-pequod-serverless-api",
+    "@pulumi-pequod/ses": "file:sdks/pulumi-pequod-ses",
     "@pulumi-pequod/static-website": "file:sdks/pulumi-pequod-static-website",
     "@pulumi/aws": "^6.0.0",
     "@pulumi/pulumi": "^3.160.0",
@@ -15,6 +16,7 @@
   },
   "allowScripts": {
     "file:sdks/pulumi-pequod-serverless-api": true,
+    "file:sdks/pulumi-pequod-ses": true,
     "file:sdks/pulumi-pequod-static-website": true
   }
 }
