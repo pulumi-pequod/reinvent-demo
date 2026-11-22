@@ -14,12 +14,9 @@
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "files": [
+  "include": [
     "index.ts",
     "config.ts",
-    "agent.ts",
-    "datadog.ts",
-    "policy.ts",
-    "approvers.ts"
+    "components/*.ts"
   ]
 }

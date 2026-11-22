@@ -19,6 +19,10 @@ export const appProject = cfg.get("appProject") ?? "reinvent-tasks";
 export const stages = ["dev", "staging", "prod"] as const;
 export type Stage = (typeof stages)[number];
 
+/** The guardrails policy pack this setup enables (published separately). */
+export const policyPackName = cfg.get("policyPackName") ?? "reinvent-demo-guardrails";
+export const policyPackVersion = cfg.get("policyPackVersion") ?? "0.2.0";
+
 /**
  * Pulumi Cloud usernames that may approve the pipeline's prod gate. The person
  * who starts a pipeline run can't approve it, so keep at least two. Defaults to

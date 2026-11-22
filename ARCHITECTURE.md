@@ -14,13 +14,14 @@ Everything splits into **staged setup** (deployed once, then left alone) and
 ```
 reinvent-demo/
 │
-├─ STAGED SETUP  ── deploy once, it just sits there ────────────────┐
-│   setup/            One Pulumi program that creates:              │
-│     ├─ datadog.ts     • Datadog monitor + webhook                 │
-│     ├─ agent.ts       • the custom Pulumi Agent (id + role +      │
-│     │                    instructions)                            │
-│     ├─ policy.ts      • policy group (turns the pack on)          │
-│     └─ approvers.ts   • the approver team                         │
+├─ STAGED SETUP  ── one program, one stack, one `pulumi up` ────────┐
+│   setup/index.ts    composes four LOCAL COMPONENTS:               │
+│     components/                                                    │
+│     ├─ datadogAlerting.ts    • Datadog monitor + webhook          │
+│     ├─ troubleshooterAgent.ts• the custom Pulumi Agent (id +      │
+│     │                           role + instructions)              │
+│     ├─ guardrailsPolicy.ts   • policy group (turns the pack on)   │
+│     └─ approverTeam.ts       • the approver team                  │
 │                                                                   │
 ├─ DEMO CODE  ── what the audience sees and the agent changes ──────┤
 │   app/              The broken task-tracker app (/remind fails)   │
