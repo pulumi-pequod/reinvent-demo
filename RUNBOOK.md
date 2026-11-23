@@ -207,9 +207,22 @@ pulumi delivery register          # registers the pipeline the program declares
 ```
 
 Then grant the pipeline access to the `cloud-access/aws-access` ESC environment
-so its stage runs can get AWS creds. Once registered, a merge to `main` touching
-`app/**` or `delivery/**` cuts a release; you can also start one from the
-pipeline view in Pulumi Cloud.
+so its stage runs can get AWS creds. Registration auto-creates a service
+principal named **`Delivery reinvent-delivery main`** with Stack Write on the
+target stacks, but **not** environment access — grant that separately:
+
+1. Pulumi Cloud → **ESC** → open **`cloud-access/aws-access`** → **Access**.
+2. **Add Principal** → **Service Principal** → pick **`Delivery reinvent-delivery main`**.
+3. Grant **Environment Open**.
+
+One grant covers all three stages (they all import the same environment).
+Without it, each stage fails with `opening environment ... does not have
+permission to open it: requires the Environment Open permission`. (Alternatively,
+run the pipeline as a team via `servicePrincipal: { teamName: ... }` on the
+`Pipeline` and grant that team Environment Open.)
+
+Once registered and granted, a merge to `main` touching `app/**` or `delivery/**`
+cuts a release; you can also start one from the pipeline view in Pulumi Cloud.
 
 ---
 
