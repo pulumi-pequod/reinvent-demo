@@ -18,12 +18,11 @@ import * as delivery from "@pulumi/delivery";
 
 const ORG_REPO = "pulumi-pequod/reinvent-demo";
 
-// Keep this in sync with setup/ (reinvent-setup:approvers) and the approver
-// team. The booth demo approves from a second account (the run-starter can't
-// approve their own run) — ishmael-archie / ishmael-betty are the shared demo
-// logins. Add more people freely; the gate just needs someone who isn't the
-// person who started the run.
-const APPROVERS = ["ishmael-archie", "ishmael-betty"];
+// `approval()` approvers can be usernames or team names. Use the org's
+// "everyone" team so anyone on the team can approve the prod gate. The
+// run-starter still can't approve their own run, so a webhook-started run (or a
+// run someone else started) is approvable by any other team member.
+const APPROVERS = ["everyone"];
 
 const repo = new delivery.GitHubSource("repo", {
     repository: ORG_REPO,
