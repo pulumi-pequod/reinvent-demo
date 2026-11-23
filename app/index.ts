@@ -73,9 +73,14 @@ const tasksAccessPolicy = tasksTable.arn.apply((tableArn) =>
 // Email: verified SES sender + scoped send policy, via the approved
 // EmailSender component from the private registry
 // ---------------------------------------------------------------------------
-const reminderFrom = config.get("reminderFrom") ?? "reminders@demo.pequod.dev";
+// Send from the already-verified SES domain identity (pulumi-ce.team, DKIM
+// verified in this account). A brand-new per-address identity would stay
+// "Pending" because nobody can receive its verification email, so
+// verifySenderAddress is false and the send policy is scoped to the domain.
+const reminderFrom = config.get("reminderFrom") ?? "reminders@pulumi-ce.team";
 const emailSender = new ses.EmailSender(`${appName}-email`, {
   senderEmail: reminderFrom,
+  verifySenderAddress: false,
   tags: {
     ...baseTags,
     // Required by the guardrails policy pack (require-email-compliance-tag) on
