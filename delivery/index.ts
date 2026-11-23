@@ -32,9 +32,10 @@ const repo = new delivery.GitHubSource("repo", {
     trigger: { paths: ["app/**", "delivery/**"] },
 });
 
-const pipeline = new delivery.Pipeline("reinvent", {
-    program: { source: repo, directory: "delivery" },
-});
+// In @pulumi/delivery 0.2.0 the pipeline program's own source comes from the
+// `delivery:source` stack config (written by `pulumi delivery register`), not a
+// Pipeline argument.
+const pipeline = new delivery.Pipeline("reinvent");
 
 // Deploy the reinvent-tasks stack for a stage, then smoke-test its API.
 function deploy(stage: delivery.Stage, env: string) {

@@ -1,4 +1,6 @@
 config:
   delivery:source:
     directory: delivery
-    url: https://github.com/lichtie/reinvent-demo
+    # Canonical repo (not the lichtie redirect) so Pulumi Cloud matches the
+    # pulumi-pequod GitHub integration when it clones the pipeline program.
+    url: https://github.com/pulumi-pequod/reinvent-demo

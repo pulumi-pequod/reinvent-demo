@@ -1,7 +1,6 @@
 name: reinvent-delivery
 runtime: nodejs
 description: The release pipeline for reinvent-tasks, as a Pulumi program.
-# `pulumi package add delivery` adds the packages entry here. Keep it.
-
-packages:
-  delivery: delivery@0.0.1-alpha.5
+# @pulumi/delivery 0.2.0 is a normal npm dependency (see package.json), so there
+# is no `packages:`/local-SDK block — that stale alpha pin broke `pulumi install`
+# in the pipeline run.
